@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prototipo GBC</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #101014; color: #9aa; font: 12px/1.4 monospace; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+  canvas { image-rendering: pixelated; image-rendering: crisp-edges; background: #000; }
+  #info { max-width: 90vw; text-align: center; }
+  #help { opacity: .7; text-align: center; max-width: 90vw; }
+  #tweaks { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 4px 24px; width: min(900px, 92vw); }
+  #tweaks label { display: grid; grid-template-columns: 1fr 110px 36px; align-items: center; gap: 8px; }
+  #tweaks b { color: #cde; text-align: right; font-weight: normal; }
+</style>
+</head>
+<body>
+<canvas id="screen"></canvas>
+<div id="info"></div>
+<div id="tweaks"></div>
+<div id="help">J1: WASD + F (disparo) + G (teleport) &nbsp;|&nbsp; J2: flechas + "," (disparo) + "." (teleport); entra al pulsar &nbsp;|&nbsp; gamepads &nbsp;|&nbsp;
+  1 hitboxes · 2 filtro LCD · 3 efecto scanline · 4 estres de sprites · P pausa · Enter reinicia</div>
+<script src="assets.js"></script>
+<script src="engine/gbc.js"></script>
+<script src="engine/input.js"></script>
+<script src="game/game.js"></script>
+</body>
+</html>
