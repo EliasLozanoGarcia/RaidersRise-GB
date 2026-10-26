@@ -1,31 +1,37 @@
-# Prototipo GBC – acción top-down 2 jugadores
+# Prototipo DMG Game Boy
 
 ## Ejecutar
-Doble clic en `index.html` (Chrome/Edge/Firefox). No hay que instalar nada.
+
+Sirve la carpeta `gbc-game` desde un servidor HTTP local y abre `index.html`.
+Por ejemplo, desde la raiz del repositorio:
+
+```powershell
+python -m http.server 8000 --directory .\gbc-game
+```
+
+Luego abre `http://localhost:8000`. El navegador bloquea la carga de los CSV
+cuando se abre la pagina directamente con `file://`.
 
 ## Controles
-| | J1 | J2 |
+
+| Accion | Jugador 1 | Jugador 2 |
 |---|---|---|
 | Mover | WASD | Flechas |
-| Disparar (A) | F | `,` |
-| B: teleport | G | `.` |
+| Disparar | F | `,` |
+| Unirse | Activo al iniciar | Pulsa cualquier control |
 
-Gamepad 1 → J1, gamepad 2 → J2. El J2 entra al pulsar cualquier botón.
-`Enter` reinicia tras GAME OVER · `P` pausa.
-Los ajustes de juego (velocidades, distancia de persecución, radio de explosión, enemigos por oleada...) están en los deslizadores bajo la pantalla y en `CFG` de `game/game.js`.
-Depuración: `1` hitboxes y colisión · `2` filtro de color LCD · `3` efecto por scanline · `4` estrés de sprites.
+Pulsa `P` para pausar y `Enter` para reiniciar tras GAME OVER. Se admiten dos
+mandos; el primero controla J1 y el segundo J2.
 
-## Estructura
-- `index.html` – página
-- `engine/gbc.js` – mini-PPU de GBC (tiles, mapas, OAM 40/10 por línea, paletas RGB555, window, hook por scanline)
-- `engine/input.js` – teclado y gamepads → botones GB
-- `game/game.js` – el juego (parámetros en `CFG` arriba del archivo)
-- `assets/` – tus PNG originales
-- `assets.js` – GENERADO por la herramienta de conversión
-- `tools/convert.py` – valida/ajusta los PNG y genera `assets.js` y `preview/`
+## Archivos activos
 
-## Cambiar gráficos
-1. Sustituye los PNG de `assets/` (mismos nombres y mismas rejillas).
-2. `python3 tools/convert.py` (necesita Python 3 con `pillow` y `numpy`).
-3. Lee `preview/report.txt`: indica cada error exacto y qué se ha corregido.
-4. Recarga `index.html`.
+- `index.html` carga el motor, los controles, `js/loader_dmg.js` y `js/game.js`.
+- `engine/gbc.js` implementa el render DMG de tiles y sprites.
+- `assets/` contiene los tilesets y spritesheets leidos directamente al iniciar.
+- `maps/Leveltest._Fondo.csv` y `maps/Leveltest._Items.csv` son las capas del
+  mapa exportadas desde Tiled.
+
+Los datos de mapa usan los GID de Tiled: el juego decodifica los GID, las
+banderas de volteo y el valor `-1` usado para celdas vacias en la capa de items.
+El conversor `tools/convert.py` corresponde al pipeline anterior de GBC; no es
+necesario para ejecutar este prototipo.

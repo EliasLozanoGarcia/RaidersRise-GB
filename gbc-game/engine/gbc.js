@@ -117,6 +117,7 @@
         const tid = this.mapTile[map][mi];
         const attr = this.mapAttr[map][mi];
         let yy = py & 7, xx = px & 7;
+        if (attr & 0x10) [xx, yy] = [yy, xx];
         if (attr & 0x40) yy = 7 - yy;
         if (attr & 0x20) xx = 7 - xx;
         const base = tid * 16 + yy * 2;

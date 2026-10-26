@@ -1,0 +1,67 @@
+{
+    "Map/SizeTest": {
+        "height": 4300,
+        "width": 2
+    },
+    "activeFile": "Urban.tsx",
+    "expandedProjectPaths": [
+        "."
+    ],
+    "fileStates": {
+        "Level1-1..tmx": {
+            "scale": 2,
+            "selectedLayer": 2,
+            "viewCenter": {
+                "x": 84.25,
+                "y": 183
+            }
+        },
+        "Level1-1.tmx": {
+            "scale": 3,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 177.66666666666663,
+                "y": 178.66666666666669
+            }
+        },
+        "Leveltest..tmx": {
+            "expandedObjectLayers": [
+                2
+            ],
+            "scale": 2,
+            "selectedLayer": 1,
+            "viewCenter": {
+                "x": 112.5,
+                "y": 168
+            }
+        },
+        "Urban.tsx": {
+            "scaleInDock": 4,
+            "scaleInEditor": 8
+        }
+    },
+    "last.exportedFilePath": "E:/_Elias/Raiders Rise Gameboy/gbc-game/Tilesmaps",
+    "last.imagePath": "E:/_Elias/Raiders Rise Gameboy/ART",
+    "map.height": 32,
+    "map.lastUsedExportFilter": "Todos los archivos (*)",
+    "map.lastUsedFormat": "tmx",
+    "map.tileHeight": 8,
+    "map.tileWidth": 8,
+    "map.width": 32,
+    "openFiles": [
+        "Level1-1.tmx",
+        "Urban.tsx",
+        "Leveltest..tmx"
+    ],
+    "project": "sin nombre.tiled-project",
+    "recentFiles": [
+        "Level1-1.tmx",
+        "Leveltest..tmx",
+        "Urban.tsx"
+    ],
+    "tileset.lastUsedFormat": "tsx",
+    "tileset.tileSize": {
+        "height": 8,
+        "width": 8
+    }
+}
