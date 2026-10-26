@@ -1,13 +1,6 @@
 window.DMGLoader = (function () {
   "use strict";
 
-  const DMG_PALETTE_15BIT = [
-    19 | (23 << 5) | (2 << 10),
-    17 | (21 << 5) | (2 << 10),
-    6 | (12 << 5) | (6 << 10),
-    2 | (7 << 5) | (2 << 10)
-  ];
-
   async function loadMapCSV(url) {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`HTTP ${response.status} al cargar ${url}`);
@@ -48,49 +41,10 @@ window.DMGLoader = (function () {
     return { w: 32, h: 32, data, attrs };
   }
 
-  function loadTilesetDMG(imageSrc) {
+  function loadImage(imageSrc) {
     return new Promise((resolve, reject) => {
       const img = new Image();
-      img.onload = () => {
-        try {
-          if (img.width % 8 || img.height % 8) {
-            throw new Error(`${imageSrc} debe medir multiplos de 8 px`);
-          }
-          const canvas = document.createElement("canvas");
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext("2d", { willReadFrequently: true });
-          ctx.drawImage(img, 0, 0);
-
-          const tilesWide = img.width / 8;
-          const tilesHigh = img.height / 8;
-          const tiles = [];
-          for (let tile = 0; tile < tilesWide * tilesHigh; tile++) {
-            const tx = (tile % tilesWide) * 8;
-            const ty = Math.floor(tile / tilesWide) * 8;
-            const pixels = ctx.getImageData(tx, ty, 8, 8).data;
-            const bytes = new Uint8Array(16);
-
-            for (let y = 0; y < 8; y++) {
-              let low = 0, high = 0;
-              for (let x = 0; x < 8; x++) {
-                const offset = (y * 8 + x) * 4;
-                const alpha = pixels[offset + 3];
-                const luminance = 0.299 * pixels[offset] + 0.587 * pixels[offset + 1] + 0.114 * pixels[offset + 2];
-                const color = alpha <= 64 ? 0 : luminance > 185 ? 0 : luminance > 125 ? 1 : luminance > 65 ? 2 : 3;
-                low = (low << 1) | (color & 1);
-                high = (high << 1) | ((color >> 1) & 1);
-              }
-              bytes[y * 2] = low;
-              bytes[y * 2 + 1] = high;
-            }
-            tiles.push(bytes);
-          }
-          resolve({ tiles, tilesWide, tilesHigh });
-        } catch (error) {
-          reject(error);
-        }
-      };
+      img.onload = () => resolve(img);
       img.onerror = () => reject(new Error(`No se pudo cargar la imagen ${imageSrc}`));
       img.src = imageSrc;
     });
@@ -98,10 +52,10 @@ window.DMGLoader = (function () {
 
   return {
     init: async function () {
-      const [tileset, player, enemy, backgroundMap, itemsMap] = await Promise.all([
-        loadTilesetDMG("assets/tileset_Urban.png"),
-        loadTilesetDMG("assets/Kathy_Run.png"),
-        loadTilesetDMG("assets/enemies_run.png"),
+      const [tilesetImage, playerImage, enemyImage, backgroundMap, itemsMap] = await Promise.all([
+        loadImage("assets/tileset_GBC_Urban.png"),
+        loadImage("assets/Kathy_Sprites.png"),
+        loadImage("assets/enemies_run.png"),
         loadMapCSV("maps/Leveltest._Fondo.csv"),
         loadMapCSV("maps/Leveltest._Items.csv")
       ]);
@@ -109,14 +63,9 @@ window.DMGLoader = (function () {
         throw new Error("Las capas Fondo e Items deben tener las mismas dimensiones");
       }
       return {
-        palette: DMG_PALETTE_15BIT,
-        tiles: tileset.tiles,
-        playerTiles: player.tiles,
-        playerTilesWide: player.tilesWide,
-        playerTilesHigh: player.tilesHigh,
-        enemyTiles: enemy.tiles,
-        enemyTilesWide: enemy.tilesWide,
-        enemyTilesHigh: enemy.tilesHigh,
+        tilesetImage,
+        playerImage,
+        enemyImage,
         backgroundMap,
         itemsMap
       };

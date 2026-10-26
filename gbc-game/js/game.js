@@ -1,6 +1,5 @@
 /*
- * Prototipo: Accion top-down con estricta arquitectura Game Boy Clasica (DMG)
- * Paleta verde de 4 tonos, 256 tiles, colisiones totales/medias y logica interactiva.
+ * Prototipo: accion top-down con colisiones por tiles y graficos PNG a color original.
  */
 (function () {
   "use strict";
@@ -52,8 +51,6 @@
   let MAP_W = 32, MAP_H = 32;
   const VIEW_H = 144;
   let assets;
-  let enemyTileStart = 0;
-  let bulletTile = 0;
 
   // ------------------------------------------------------------ Tablas de Colisiones
   const COL_TOTAL = new Set([
@@ -534,40 +531,66 @@
     if (!players.some(p => p.active && p.hp > 0)) gameOver = true;
   }
 
-  // ------------------------------------------------------------ Renderizado DMG
+  function drawMapTile(ctx, tx, ty, tileId, attr) {
+    if (tileId < 0) return;
+    const screenX = tx * 8 - cam.x;
+    const screenY = ty * 8 - cam.y;
+    const sourceX = (tileId % 32) * 8;
+    const sourceY = Math.floor(tileId / 32) * 8;
+    const flags = attr || 0;
+    ctx.save();
+    ctx.translate(screenX + 4, screenY + 4);
+    if (flags & 0x10) ctx.transform(0, 1, 1, 0, 0, 0);
+    if (flags & 0x20) ctx.scale(-1, 1);
+    if (flags & 0x40) ctx.scale(1, -1);
+    ctx.drawImage(assets.tilesetImage, sourceX, sourceY, 8, 8, -4, -4, 8, 8);
+    ctx.restore();
+  }
+
+  // ------------------------------------------------------------ Renderizado a color original
   function render() {
-    gbc.clearOam();
-    let oam = 0;
+    const ctx = gbc.ctx;
+    ctx.clearRect(0, 0, GBC_W, GBC_H);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, GBC_W, GBC_H);
+
+    const firstTileX = Math.max(0, Math.floor(cam.x / 8));
+    const lastTileX = Math.min(MAP_W - 1, Math.floor((cam.x + GBC_W - 1) / 8));
+    const firstTileY = Math.max(0, Math.floor(cam.y / 8));
+    const lastTileY = Math.min(MAP_H - 1, Math.floor((cam.y + GBC_H - 1) / 8));
+
+    for (let ty = firstTileY; ty <= lastTileY; ty++) {
+      for (let tx = firstTileX; tx <= lastTileX; tx++) {
+        const idx = ty * MAP_W + tx;
+        drawMapTile(ctx, tx, ty, fondoLayer[idx], fondoAttrs[idx]);
+      }
+    }
+    for (let ty = firstTileY; ty <= lastTileY; ty++) {
+      for (let tx = firstTileX; tx <= lastTileX; tx++) {
+        const idx = ty * MAP_W + tx;
+        if (itemsLayer[idx] >= 0) drawMapTile(ctx, tx, ty, itemsLayer[idx], itemsAttrs[idx]);
+      }
+    }
 
     for (const p of players) {
       if (!p.active || p.hp <= 0) continue;
       if (p.inv > 0 && !(p.hit > 0) && ((frame >> 2) & 1)) continue;
       const px = (p.x >> 8) - cam.x;
       const py = (p.y >> 8) - cam.y;
-      const row = p.row * 2;
-      const top = row * assets.playerTilesWide + p.facing * 2;
-      gbc.setSprite(oam++, px, py, top, 0x08);
-      gbc.setSprite(oam++, px + 8, py, top + 1, 0x08);
-      gbc.setSprite(oam++, px, py + 8, top + assets.playerTilesWide, 0x08);
-      gbc.setSprite(oam++, px + 8, py + 8, top + assets.playerTilesWide + 1, 0x08);
+      ctx.drawImage(assets.playerImage, p.facing * 16, p.row * 16, 16, 16, px, py, 16, 16);
     }
 
     for (const b of bullets) {
-      if (oam >= 40) break;
-      gbc.setSprite(oam++, (b.x >> 8) - cam.x - 4, (b.y >> 8) - cam.y - 4, bulletTile, 0x08);
+      ctx.fillStyle = "#fff";
+      ctx.fillRect((b.x >> 8) - cam.x - 2, (b.y >> 8) - cam.y - 2, 4, 4);
     }
 
     for (const e of enemies) {
-      if (oam >= 40) break;
       const px = (e.x >> 8) - cam.x, py = (e.y >> 8) - cam.y;
       const frameIndex = e.moving ? ((e.animT / CFG.enemyAnimFrames) | 0) & 1 : 0;
-      const tile = enemyTileStart + frameIndex * assets.enemyTilesWide + e.dir;
-      gbc.setSprite(oam++, px, py, tile, 0x08);
+      ctx.drawImage(assets.enemyImage, e.dir * 8, frameIndex * 8, 8, 8, px, py, 8, 8);
     }
 
-    gbc.scx = cam.x;
-    gbc.scy = cam.y;
-    gbc.renderFrame();
     const status = players.map((p) => p.active ? `J${p.id + 1} HP ${p.hp}` : `J${p.id + 1} -`).join("   ");
     document.getElementById("info").textContent = gameOver ? "GAME OVER · Enter para reiniciar" :
       `${paused ? "PAUSA · " : ""}${status}   Oleada ${wave}   Enemigos ${enemies.length}`;
@@ -583,30 +606,7 @@
     fondoLayer = assets.backgroundMap.data.slice();
     fondoAttrs = assets.backgroundMap.attrs.slice();
 
-    if (assets.playerTiles.length + assets.enemyTiles.length + 1 > 256) {
-      throw new Error("Los sprites superan el limite de 256 tiles de VRAM");
-    }
-    enemyTileStart = assets.playerTiles.length;
-    bulletTile = enemyTileStart + assets.enemyTiles.length;
-    gbc.loadTiles(0, 0, assets.tiles);
-    gbc.loadTiles(1, 0, assets.playerTiles);
-    gbc.loadTiles(1, enemyTileStart, assets.enemyTiles);
-
-    const bulletBytes = new Uint8Array(16);
-    for (let y = 2; y <= 5; y++) {
-      let low = 0, high = 0;
-      for (let x = 0; x < 8; x++) {
-        const color = x >= 2 && x <= 5 ? (x >= 3 && x <= 4 && y >= 3 && y <= 4 ? 3 : 2) : 0;
-        low = (low << 1) | (color & 1);
-        high = (high << 1) | ((color >> 1) & 1);
-      }
-      bulletBytes[y * 2] = low;
-      bulletBytes[y * 2 + 1] = high;
-    }
-    gbc.loadTiles(1, bulletTile, [bulletBytes]);
-
-    gbc.setBgPalette(0, assets.palette);
-    gbc.setObjPalette(0, assets.palette);
+    gbc.ctx.imageSmoothingEnabled = false;
 
     for (let i = 0; i < MAP_W * MAP_H; i++) syncMapCell(i);
 
