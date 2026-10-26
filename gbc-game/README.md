@@ -18,18 +18,34 @@ cuando se abre la pagina directamente con `file://`.
 |---|---|---|
 | Mover | WASD | Flechas |
 | Disparar | F | `,` |
+| Teletransportarse (2 tiles, animado y con enfriamiento) | G | `.` |
 | Unirse | Activo al iniciar | Pulsa cualquier control |
+
+Para abrir un cofre o una puerta, mantente empujándolo en su dirección durante
+1,5 segundos. La hoja de la puerta gira junto al marco y deja libre el paso. Si
+dejas de empujar o te alejas antes de abrirlos, el progreso se reinicia. La
+puerta abierta también responde al empuje con una animación breve. El personaje
+muestra la animación de empuje al presionar contra cofres o puertas.
 
 Pulsa `P` para pausar y `Enter` para reiniciar tras GAME OVER. Se admiten dos
 mandos; el primero controla J1 y el segundo J2.
+
+Las balas detonan al acercarse a un enemigo y dañan a otros dentro del radio de
+la explosión. Empujar un cofre durante 1,5 segundos suma cinco monedas al
+inventario y deja monedas recogibles sobre el cofre y en celdas transitables
+cercanas. Los enemigos derrotados también pueden soltar monedas: camina sobre
+ellas para recogerlas; el total aparece en el HUD. Los enemigos varían
+ligeramente su velocidad, vagan cuando están lejos y evitan amontonarse. J2
+aparece junto a J1 cuando se une.
 
 ## Archivos activos
 
 - `index.html` carga el motor, los controles, `js/loader_dmg.js` y `js/game.js`.
 - `engine/gbc.js` conserva el motor de colisiones y el renderizador retro anterior.
-- `assets/tileset_GBC_Urban.png` y `assets/Kathy_Sprites.png` son copias directas
-  de los PNG a color de `ART/`; el juego los dibuja sin reducir ni cambiar sus
-  colores. Los enemigos se dibujan desde `assets/enemies_run.png`.
+- `assets/tileset_GBC_Urban.png`, `assets/Kathy_Sprites.png` y
+  `assets/Teleport_GBC.png` son copias directas de los PNG de `ART/`; se dibujan
+  sin reducir ni cambiar sus colores. Los enemigos se dibujan desde
+  `assets/enemies_run.png`.
 - `maps/Leveltest._Fondo.csv` y `maps/Leveltest._Items.csv` son las capas del
   mapa exportadas desde Tiled.
 

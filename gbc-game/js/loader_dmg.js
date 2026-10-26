@@ -52,10 +52,11 @@ window.DMGLoader = (function () {
 
   return {
     init: async function () {
-      const [tilesetImage, playerImage, enemyImage, backgroundMap, itemsMap] = await Promise.all([
+      const [tilesetImage, playerImage, enemyImage, teleportImage, backgroundMap, itemsMap] = await Promise.all([
         loadImage("assets/tileset_GBC_Urban.png"),
         loadImage("assets/Kathy_Sprites.png"),
         loadImage("assets/enemies_run.png"),
+        loadImage("assets/Teleport_GBC.png"),
         loadMapCSV("maps/Leveltest._Fondo.csv"),
         loadMapCSV("maps/Leveltest._Items.csv")
       ]);
@@ -66,6 +67,7 @@ window.DMGLoader = (function () {
         tilesetImage,
         playerImage,
         enemyImage,
+        teleportImage,
         backgroundMap,
         itemsMap
       };
