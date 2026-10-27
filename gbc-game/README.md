@@ -27,8 +27,20 @@ dejas de empujar o te alejas antes de abrirlos, el progreso se reinicia. La
 puerta abierta también responde al empuje con una animación breve. El personaje
 muestra la animación de empuje al presionar contra cofres o puertas.
 
-Pulsa `P` para pausar y `Enter` para reiniciar tras GAME OVER. Se admiten dos
+Pulsa `P` para pausar. Se admiten dos
 mandos; el primero controla J1 y el segundo J2.
+
+El juego arranca con una splash screen con tres opciones (Izq/Der y A): **Play**
+(selección de personaje), **Raiders** (galería de personajes con ficha detallada)
+y **Settings** (idioma, sonido, música y efectos; se guardan en `localStorage`; aún
+no hay música en el juego). La pantalla de selección de
+personaje (Izq/Der elegir, A confirmar, B cancelar; J2 se une pulsando A):
+
+- **Kathy**: bazuca con explosión; especial en área 3x3 con daño continuo.
+- **Kurt**: +50 % vida, más lento; ametralladora (15 balas/s con dispersión);
+  especial 5x2 con daño x3 instantáneo.
+- **Skreek**: +25 % vida, más rápido; espada (5 golpes/s, 2 tiles delante);
+  especial: proyectil que atraviesa y destruye todo (SELECT con la barra llena).
 
 Las balas detonan al acercarse a un enemigo y dañan a otros dentro del radio de
 la explosión. Empujar un cofre durante 1,5 segundos suma cinco monedas al
@@ -48,6 +60,17 @@ aparece junto a J1 cuando se une.
   `assets/enemies_run.png`.
 - `maps/Leveltest._Fondo.csv` y `maps/Leveltest._Items.csv` son las capas del
   mapa exportadas desde Tiled.
+- `tools/convert_splash.py` convierte `assets/splash screen.png` en
+  `assets/splash_tiles.png` (185 tiles únicos) y `maps/splash.json` (mapa de tiles).
+- `tools/convert_portraits.py` recorta los retratos de `assets/selection Screen.png`
+  y los pasa a 4 verdes (`assets/portraits.png`).
+- Los textos usan `assets/font_8x8.png` (ancho proporcional): se componen en un
+  buffer propio de 32 tiles (ids 128-159) y se pintan como tiles.
+- Tiles compuestos: los items con transparencia (detectados por alfa en el tileset),
+  las monedas (25) y las alertas (93 cofre, 126/127 cristal) se dibujan como un tile
+  buffer (suelo + item) de un pool de 128 huecos, que se libera al desaparecer el item.
+  Las monedas caen (1 px mas arriba durante 0,1 s) y salen escalonadas en grupos de 1-3.
+  Al empujar un cofre o cristal, sus tiles superiores se cambian por la alerta.
 
 Los datos de mapa usan los IDs locales exportados desde Tiled: el juego aplica
 las banderas de volteo y dibuja cada tile directamente desde el PNG original.

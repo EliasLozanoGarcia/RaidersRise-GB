@@ -52,13 +52,23 @@ window.DMGLoader = (function () {
 
   return {
     init: async function () {
-      const [tilesetImage, playerImage, enemyImage, teleportImage, backgroundMap, itemsMap] = await Promise.all([
+      const [tilesetImage, playerImage, kurtImage, skreekImage, splashTiles, splashMap, enemyImage, beeImage, teleportImage,       backgroundMap, itemsMap, fontImage, portraitsImage] = await Promise.all([
         loadImage("assets/tileset_GBC_Urban.png"),
         loadImage("assets/Kathy_Sprites.png"),
+        loadImage("assets/Kurt_Sprites.png"),
+        loadImage("assets/Skreel_Sprites.png"),
+        loadImage("assets/splash_tiles.png"),
+        fetch("maps/splash.json").then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status} al cargar maps/splash.json`);
+          return r.json();
+        }),
         loadImage("assets/enemies_run.png"),
+        loadImage("assets/enemies_Bee.png"),
         loadImage("assets/Teleport_GBC.png"),
         loadMapCSV("maps/Leveltest._Fondo.csv"),
-        loadMapCSV("maps/Leveltest._Items.csv")
+        loadMapCSV("maps/Leveltest._Items.csv"),
+        loadImage("assets/font_8x8.png"),
+        loadImage("assets/portraits.png")
       ]);
       if (backgroundMap.w !== itemsMap.w || backgroundMap.h !== itemsMap.h) {
         throw new Error("Las capas Fondo e Items deben tener las mismas dimensiones");
@@ -66,10 +76,17 @@ window.DMGLoader = (function () {
       return {
         tilesetImage,
         playerImage,
+        kurtImage,
+        skreekImage,
+        splashTiles,
+        splashMap,
         enemyImage,
+        beeImage,
         teleportImage,
         backgroundMap,
-        itemsMap
+        itemsMap,
+        fontImage,
+        portraitsImage
       };
     }
   };
