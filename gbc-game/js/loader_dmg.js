@@ -27,13 +27,18 @@ window.DMGLoader = (function () {
         }
 
         const raw = value >>> 0;
+        // El hardware no tiene flip diagonal: esas celdas se ignoran.
+        if (raw & 0x20000000) {
+          data.push(-1);
+          attrs.push(0);
+          continue;
+        }
         const tileId = raw & 0x0fffffff;
         if (tileId > 255) throw new Error(`ID de tile ${tileId} fuera del tileset en ${url}`);
         data.push(tileId);
         attrs.push(
           ((raw & 0x80000000) ? 0x20 : 0) |
-          ((raw & 0x40000000) ? 0x40 : 0) |
-          ((raw & 0x20000000) ? 0x10 : 0)
+          ((raw & 0x40000000) ? 0x40 : 0)
         );
       }
     }
@@ -52,7 +57,7 @@ window.DMGLoader = (function () {
 
   return {
     init: async function () {
-      const [tilesetImage, playerImage, kurtImage, skreekImage, splashTiles, splashMap, enemyImage, beeImage, teleportImage,       backgroundMap, itemsMap, fontImage, portraitsImage] = await Promise.all([
+      const [tilesetImage, playerImage, kurtImage, skreekImage, splashTiles, splashMap, enemyImage, beeImage, bigSlugImage, teleportImage,       backgroundMap, itemsMap, level1Fondo, level1Items, level1Logic, fontImage, portraitsImage] = await Promise.all([
         loadImage("assets/tileset_GBC_Urban.png"),
         loadImage("assets/Kathy_Sprites.png"),
         loadImage("assets/Kurt_Sprites.png"),
@@ -64,14 +69,23 @@ window.DMGLoader = (function () {
         }),
         loadImage("assets/enemies_run.png"),
         loadImage("assets/enemies_Bee.png"),
+        loadImage("assets/enemies_Slug_Big.png"),
         loadImage("assets/Teleport_GBC.png"),
         loadMapCSV("maps/Leveltest._Fondo.csv"),
         loadMapCSV("maps/Leveltest._Items.csv"),
+        loadMapCSV("maps/Level1-1_Fondo.csv"),
+        loadMapCSV("maps/Level1-1_Items.csv"),
+        fetch("maps/Level1-1_Logic.json").then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status} al cargar maps/Level1-1_Logic.json`);
+          return r.json();
+        }),
         loadImage("assets/font_8x8.png"),
         loadImage("assets/portraits.png")
       ]);
-      if (backgroundMap.w !== itemsMap.w || backgroundMap.h !== itemsMap.h) {
-        throw new Error("Las capas Fondo e Items deben tener las mismas dimensiones");
+      if (backgroundMap.w !== itemsMap.w || backgroundMap.h !== itemsMap.h
+        || level1Fondo.w !== backgroundMap.w || level1Items.w !== backgroundMap.w
+        || level1Fondo.h !== backgroundMap.h || level1Items.h !== backgroundMap.h) {
+        throw new Error("Todas las capas de los niveles deben tener las mismas dimensiones");
       }
       return {
         tilesetImage,
@@ -82,9 +96,13 @@ window.DMGLoader = (function () {
         splashMap,
         enemyImage,
         beeImage,
+        bigSlugImage,
         teleportImage,
         backgroundMap,
         itemsMap,
+        level1Fondo,
+        level1Items,
+        level1Logic,
         fontImage,
         portraitsImage
       };

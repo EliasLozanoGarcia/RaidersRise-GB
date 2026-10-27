@@ -10,14 +10,15 @@
 
   // ------------------------------------------------------------ Parametros de juego
   const CFG = {
-    playerSpeed: 1.0,
-    enemySpeed: 0.1,
+    // Velocidades y multiplicadores en 8.8 (256 = 1 px/frame o x1.0)
+    playerSpeed: 256,
+    enemySpeed: 26,
     chaseRange: 5,
-    blastRadius: 1.5,
+    blastRadius: 12, // pixeles
     fuseRadius: 8,
     blastFrames: 10,
-    wanderFactor: 0.5,
-    speedJitter: 0.10,
+    wanderFactor: 128,
+    speedJitter: 26,
     teleportDistance: 2,
     teleportCooldown: 40,
     teleportStepFrames: 4,
@@ -27,14 +28,14 @@
     bulletSpeed: 3 * 256,
     bulletRange: 88,
     bulletGroundOffset: 8,
-    fireRate: 1.5,
+    fireDelay: 40, // frames entre disparos
     ammoMax: 25,
     reloadFrames: 240,
     specialCharge: 2400,
     specialFrames: 240,
     specialTickFrames: 30,
     specialDamage: 1,
-    volume: 0.5,
+    volume: 0.5, // solo audio web
     nudgePixels: 3,
     // Objetos del mapa que aparecen al cargar (el resto de ubicaciones se descarta al azar).
     crystalCount: 1,
@@ -49,9 +50,9 @@
     maxSpritesPerLine: 10,
     // Tipos de enemigo: weight = frecuencia relativa de aparicion, speed = multiplicador de enemySpeed.
     enemyTypes: {
-      slime: { weight: 10, hp: 2, speed: 1, size: 8, flying: false, sprite: "enemyImage" },
-      bigSlime: { weight: 1, hp: 4, speed: 0.5, size: 16, flying: false, sprite: "enemyImage" },
-      bee: { weight: 3, hp: 1, speed: 5, size: 8, flying: true, sprite: "beeImage" },
+      slime: { weight: 10, hp: 2, speed: 256, size: 8, flying: false, sprite: "enemyImage" },
+      bigSlime: { weight: 1, hp: 4, speed: 128, size: 16, flying: false, sprite: "bigSlugImage" },
+      bee: { weight: 3, hp: 1, speed: 1280, size: 8, flying: true, sprite: "beeImage" },
     },
     playerHp: 4,
     enemyHp: 2,
@@ -186,6 +187,44 @@
   ];
   DIRS.forEach((d, i) => { DIR_INDEX[(d[1] + 1) * 3 + (d[0] + 1)] = i; });
 
+  // ------------------------------------------------------------ Aritmetica entera (sin coma flotante)
+  // Angulos de 0-255 (256 = vuelta completa, 0 = derecha, 64 = abajo). Valores en 8.8 (256 = 1.0).
+  const mulf = (a, b) => (a * b) >> 8;
+  const SIN_TAB = new Int16Array(256); // tabla constante (en ROM en la consola)
+  for (let i = 0; i < 256; i++) SIN_TAB[i] = Math.round(Math.sin(i * Math.PI / 128) * 256);
+  const sinb = (a) => SIN_TAB[a & 255];
+  const cosb = (a) => SIN_TAB[(a + 64) & 255];
+  // Angulo de cada direccion de DIRS y su vector unitario en 8.8
+  const DIR_ANG = DIRS.map((d, i) => (96 + 32 * i) & 255);
+  const DIRU = DIR_ANG.map((a) => [cosb(a), sinb(a)]);
+  // Octante 0-7 (DIRS) mas cercano a un angulo
+  const dirFromAngle = (a) => (5 + (((a + 16) >> 5) & 7)) & 7;
+  // atan2 aproximado en angulos de 0-255 (error < 1 unidad)
+  function atan2b(y, x) {
+    if (!x && !y) return 0;
+    const ax = x < 0 ? -x : x, ay = y < 0 ? -y : y;
+    const lo = ay <= ax ? ay : ax, hi = ay <= ax ? ax : ay;
+    const r = ((lo << 8) / hi) | 0; // 0-256
+    let a = (32 * r + 11 * ((r * (256 - r)) >> 8)) >> 8; // atan(r) ~ r*(pi/4 + 0.273*(1-r))
+    if (ay > ax) a = 64 - a;
+    if (x < 0) a = 128 - a;
+    if (y < 0) a = (256 - a) & 255;
+    return a & 255;
+  }
+  // Generador pseudoaleatorio xorshift de 16 bits (determinista, sin Math.random)
+  let rngState = 0xACE1;
+  function rand16() {
+    rngState ^= (rngState << 7) & 0xFFFF;
+    rngState ^= rngState >> 9;
+    rngState ^= (rngState << 8) & 0xFFFF;
+    return rngState;
+  }
+  const rnd = (n) => (rand16() * n) >> 16; // 0..n-1
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) { const j = rnd(i + 1); [arr[i], arr[j]] = [arr[j], arr[i]]; }
+    return arr;
+  }
+
   let MAP_W = 32, MAP_H = 32;
   const HUD_H = 16;
   const VIEW_H = 144 - HUD_H;
@@ -229,7 +268,7 @@
   // ------------------------------------------------------------ Tiles compuestos (suelo + tile con transparencia)
   // Los items con transparencia, las monedas y los avisos se dibujan como un unico tile pre-compuesto
   // (suelo + item) en un buffer de tiles; el hueco se libera cuando el item desaparece.
-  const COMP_SLOTS = 128;
+  const COMP_SLOTS = 96; // ids 160-255 (filas 6-8 del tileset, libres)
   const COIN_TILE = 25, FALL_FRAMES = 6;
   const ALERT_CHEST = 93, ALERT_CRYSTAL = [126, 127];
   const compSlot = new Map(), compFree = [], coinAnim = new Map(), transparentTiles = new Set();
@@ -287,8 +326,7 @@
   function drawTileInto(c, id, attr, ox, oy) {
     c.save();
     c.translate(ox + 4, oy + 4);
-    if (attr & 0x10) c.transform(0, 1, 1, 0, 0, 0);
-    if (attr & 0x20) c.scale(-1, 1);
+   if (attr & 0x20) c.scale(-1, 1);
     if (attr & 0x40) c.scale(1, -1);
     c.drawImage(assets.tilesetImage, (id % 32) * 8, ((id / 32) | 0) * 8, 8, 8, -4, -4, 8, 8);
     c.restore();
@@ -326,7 +364,7 @@
   // y se voltea al azar (espejo) para que no queden todas iguales.
   function pickCoinCell(idx) {
     const tx0 = idx % MAP_W, ty0 = (idx / MAP_W) | 0;
-    const dx = ((Math.random() * 3) | 0) - 1, dy = (Math.random() * 2) | 0;
+    const dx = rnd(3) - 1, dy = rnd(2);
     const tries = [[dx, dy], [dx, 0], [0, dy], [0, 0]];
     for (const [ox, oy] of tries) {
       const tx = tx0 + ox, ty = ty0 + oy;
@@ -342,18 +380,18 @@
   function spawnCoins(cells) {
     let delay = 0;
     for (let i = 0; i < cells.length;) {
-      const n = cells.length > 2 ? 1 + ((Math.random() * 3) | 0) : cells.length;
+      const n = cells.length > 2 ? 1 + rnd(3) : cells.length;
       for (let k = 0; k < n && i < cells.length; k++, i++) {
         const idx = pickCoinCell(cells[i]);
         if (idx < 0) continue;
         releaseComposite(idx);
         itemsLayer[idx] = COIN_TILE;
-        itemsAttrs[idx] = Math.random() < 0.5 ? 0x20 : 0;
+        itemsAttrs[idx] = rnd(2) ? 0x20 : 0;
         syncMapCell(idx);
         if (fondoClear(idx)) setComposite(idx, 0, true);
         coinAnim.set(idx, { delay, fall: false, t: 0 });
       }
-      delay += 1 + ((Math.random() * 2) | 0);
+      delay += 1 + rnd(2);
     }
   }
 
@@ -511,7 +549,7 @@
     for (const kind of Object.keys(groups)) {
       const list = groups[kind];
       for (let i = list.length - 1; i > 0; i--) {
-        const j = (Math.random() * (i + 1)) | 0;
+        const j = rnd(i + 1);
         [list[i], list[j]] = [list[j], list[i]];
       }
       for (const cells of list.slice(Math.max(0, keep[kind]))) for (const c of cells) setItemTile(c, -1);
@@ -688,9 +726,9 @@
       for (let oy = -radius; oy <= 1 + radius && extraCoins < 8; oy++) {
         for (let ox = -radius; ox <= 1 + radius && extraCoins < 8; ox++) {
           if (Math.max(
-            Math.abs(ox - 0.5),
-            Math.abs(oy - 0.5)
-          ) < radius) continue;
+            Math.abs(2 * ox - 1),
+            Math.abs(2 * oy - 1)
+          ) < 2 * radius) continue;
 
           const tx = chest.tx + ox;
           const ty = chest.ty + oy;
@@ -920,21 +958,22 @@
   const lv = (k) => upg[k] || 0;
   // Personajes: hp/speed son multiplicadores sobre Kathy; ammo multiplica el cargador.
   const CHARS = [
-    { name: "KATHY", img: "playerImage", hp: 1, speed: 1, ammo: 1, weapon: "rocket", ult: "area" },
-    { name: "KURT", img: "kurtImage", hp: 1.5, speed: 0.8, ammo: 3.6, rate: 15, dash: true, weapon: "gun", ult: "burst" },
-    { name: "SKREEK", img: "skreekImage", hp: 1.25, speed: 1.15, ammo: 1, rate: 5, dash: true, weapon: "sword", ult: "beam" },
+    { name: "KATHY", img: "playerImage", hp: 256, speed: 256, ammo: 256, weapon: "rocket", ult: "area" },
+    { name: "KURT", img: "kurtImage", hp: 384, speed: 205, ammo: 922, delay: 4, dash: true, weapon: "gun", ult: "burst" },
+    { name: "SKREEK", img: "skreekImage", hp: 320, speed: 294, ammo: 256, delay: 12, dash: true, weapon: "sword", ult: "beam" },
   ];
   const chars = [0, 1];
-  const maxHp = (p) => Math.round(CFG.playerHp * p.ch.hp) + lv("hp");
-  const ammoMax = (p) => Math.round((CFG.ammoMax + 10 * lv("mag")) * p.ch.ammo);
-  const fireRate = (p) => (p.ch.rate || CFG.fireRate) * (1 + 0.25 * lv("rate"));
-  const playerSpeed = (p) => CFG.playerSpeed * p.ch.speed * (1 + 0.1 * lv("speed"));
+  const maxHp = (p) => ((CFG.playerHp * p.ch.hp + 128) >> 8) + lv("hp");
+  const ammoMax = (p) => (((CFG.ammoMax + 10 * lv("mag")) * p.ch.ammo) + 128) >> 8;
+  const RATE_MUL = [256, 205, 171, 146, 128]; // 1 / (1 + 0.25 * nivel) en 8.8
+  const fireDelay = (p) => Math.max(1, mulf(p.ch.delay || CFG.fireDelay, RATE_MUL[lv("rate")]));
+  const playerSpeed = (p) => mulf(mulf(CFG.playerSpeed, p.ch.speed), 256 + 26 * lv("speed"));
   const specialDamage = () => CFG.specialDamage + lv("spDmg");
   const specialSize = () => 3 + 2 * lv("spArea");
   const specialFrames = () => CFG.specialFrames + 120 * lv("spTime");
-  const blastRadius = () => CFG.blastRadius + 0.5 * lv("blast");
+  const blastRadius = () => CFG.blastRadius + 4 * lv("blast");
   const bulletRange = () => CFG.bulletRange + 24 * lv("range");
-  const reloadFrames = () => Math.round(CFG.reloadFrames * (1 - 0.15 * lv("reload")));
+  const reloadFrames = () => mulf(CFG.reloadFrames, 256 - 38 * lv("reload"));
   const manaRegen = () => 1 + lv("mana");
   const invulnFrames = () => CFG.invuln + 30 * lv("invuln");
 
@@ -975,9 +1014,9 @@
     const coins = totalCoins();
     const cheap = avail.filter((u) => upgCost(u) <= coins);
     if (!cheap.length) return [];
-    const pick = cheap[(Math.random() * cheap.length) | 0];
-    const rest = avail.filter((u) => u !== pick).sort(() => Math.random() - 0.5).slice(0, 2);
-    return [pick, ...rest].sort(() => Math.random() - 0.5);
+    const pick = cheap[rnd(cheap.length)];
+    const rest = shuffle(avail.filter((u) => u !== pick)).slice(0, 2);
+    return shuffle([pick, ...rest]);
   }
 
   function openShop() {
@@ -1028,13 +1067,14 @@
   }
 
   // ------------------------------------------------------------ Niveles aleatorios (tileset urbano)
-  let baseLevel = null;
+  let baseLevel = null, level1Level = null, levelLogic = null;
   const FLOOR_TILES = [49, 49, 49, 50, 50, 51, 52, 53, 54, 55];
-  const rnd = (n) => (Math.random() * n) | 0;
 
   function useLayout(l) {
+    levelLogic = l.logic || null;
     fondoLayer = l.fondo.slice();
     fondoAttrs = l.fondoAttrs.slice();
+    for (let i = 0; i < fondoLayer.length; i++) if (fondoLayer[i] < 0) { fondoLayer[i] = 49; fondoAttrs[i] = 0; }
     initialItemsLayer = l.items.slice();
     initialItemsAttrs = l.itemsAttrs.slice();
   }
@@ -1052,7 +1092,7 @@
         const sx = x === MAP_W - 1 && y >= 2 && y < MAP_H - 2 ? 0 : x;
         const sy = y >= MAP_H - 2 ? y - (MAP_H - 2) : y;
         const si = sy * MAP_W + sx;
-        fondo[i] = bd[si]; fAttrs[i] = ba[si];
+        fondo[i] = bd[si] < 0 ? 49 : bd[si]; fAttrs[i] = bd[si] < 0 ? 0 : ba[si];
       }
     }
     const used = new Uint8Array(n);
@@ -1121,11 +1161,18 @@
     return { fondo, fondoAttrs: fAttrs, items, itemsAttrs: iAttrs };
   }
 
-  // Ciclo de 3 mapas por partida (original + 2 aleatorios); del nivel 4 en adelante se repiten con mas enemigos.
+  // Ciclo de 4 mapas por partida (Level1-1 con su logica, el original y 2 aleatorios); despues se repiten con mas enemigos.
   let layouts = [];
   function buildLayouts() {
-    const styles = [0, 1, 2].sort(() => Math.random() - 0.5);
-    layouts = [baseLevel, generateLevel(styles[0]), generateLevel(styles[1])];
+    const styles = shuffle([0, 1, 2]);
+    layouts = [level1Level, baseLevel, generateLevel(styles[0]), generateLevel(styles[1])];
+  }
+
+  // Posicion inicial de cada jugador: dentro del rectangulo "Start" del nivel, o fija si no lo tiene.
+  function startPos(i) {
+    const s = levelLogic && levelLogic.start;
+    if (!s) return [[120, 160], [160, 160]][i];
+    return [Math.min(s[0] + i * 16, s[0] + s[2] - 16), s[1] + ((s[3] - 16) >> 1)];
   }
 
   function pickLevel() {
@@ -1142,7 +1189,7 @@
     barrierHit.clear();
     itemsAttrs = initialItemsAttrs.slice();
     for (let i = 0; i < MAP_W * MAP_H; i++) syncMapCell(i);
-    players = [newPlayer(0, 120, 160), newPlayer(1, 160, 160)];
+    players = [newPlayer(0, ...startPos(0)), newPlayer(1, ...startPos(1))];
     enemies = [];
     bullets = [];
     teleportEffects = [];
@@ -1153,8 +1200,8 @@
     stats = { kills: 0, time: 0, shots: 0 };
     goSel = 0;
     paused = false;
-    cam.x = 48;
-    cam.y = 80;
+    cam.x = Math.max(0, Math.min(MAP_W * 8 - 160, (players[0].x >> 8) + 8 - 80));
+    cam.y = Math.max(0, Math.min(MAP_H * 8 - VIEW_H, (players[0].y >> 8) + 12 - (VIEW_H >> 1)));
     initInteractives();
     resetComposites();
   }
@@ -1184,7 +1231,7 @@
             animT: 0,
             moving: false,
             dir: 7,
-            speedScale: 1 + (Math.random() * 2 - 1) * CFG.speedJitter,
+            speedScale: 256 + rnd(2 * CFG.speedJitter + 1) - CFG.speedJitter,
             wanderDir: -1,
             wanderTimer: 0,
           });
@@ -1199,7 +1246,7 @@
     const entries = Object.entries(CFG.enemyTypes);
     let total = 0;
     for (const [, t] of entries) total += t.weight;
-    let r = Math.random() * total;
+    let r = rnd(total);
     for (const [name, t] of entries) {
       if ((r -= t.weight) < 0) return name;
     }
@@ -1211,8 +1258,16 @@
     const cycle = ((level - 1) / layouts.length) | 0;
     const count = Math.min(CFG.waveBase + cycle * 20 + (wave - 1) * CFG.wavePerWave, CFG.waveMax + cycle * 20);
     let spawned = 0;
+    const areas = levelLogic && levelLogic.spawners.length ? levelLogic.spawners : null;
     for (let i = 0; i < count * 4 && spawned < count; i++) {
-      const [x, y] = SPAWNS[(i + wave - 1) % SPAWNS.length];
+      let x, y;
+      if (areas) {
+        const r = areas[(i + wave - 1) % areas.length];
+        x = (r[0] + rnd(r[2] || 1)) >> 3;
+        y = (r[1] + rnd(r[3] || 1)) >> 3;
+      } else {
+        [x, y] = SPAWNS[(i + wave - 1) % SPAWNS.length];
+      }
       const px = x * 8, py = y * 8;
       if (players.some((p) => p.active && p.hp > 0 && Math.abs((p.x >> 8) - px) < 48 && Math.abs((p.y >> 8) - py) < 48)) continue;
       if (spawnEnemyAt(x, y, pickEnemyType())) spawned++;
@@ -1247,7 +1302,7 @@
   }
 
   function explode(cx, cy) {
-    const radius = blastRadius() * 8;
+    const radius = blastRadius();
     for (const enemy of enemies) {
       if (enemy.hp <= 0) continue;
       const dx = (enemy.x >> 8) + 4 - cx;
@@ -1255,8 +1310,8 @@
       if (dx * dx + dy * dy <= radius * radius) damageEnemy(enemy, 1 + lv("dmg"));
     }
 
-    for (let ty = Math.floor((cy - radius) / 8); ty <= Math.floor((cy + radius) / 8); ty++) {
-      for (let tx = Math.floor((cx - radius) / 8); tx <= Math.floor((cx + radius) / 8); tx++) {
+    for (let ty = (cy - radius) >> 3; ty <= (cy + radius) >> 3; ty++) {
+      for (let tx = (cx - radius) >> 3; tx <= (cx + radius) >> 3; tx++) {
         if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H || getCellCollision(tx, ty) !== 0) continue;
         const nearestX = Math.max(tx * 8, Math.min(cx, tx * 8 + 8));
         const nearestY = Math.max(ty * 8, Math.min(cy, ty * 8 + 8));
@@ -1268,10 +1323,7 @@
   }
 
   function startTeleport(player, facing) {
-    const direction = DIRS[facing];
-    const length = Math.hypot(direction[0], direction[1]);
-    const unitX = direction[0] / length;
-    const unitY = direction[1] / length;
+    const [unitX, unitY] = DIRU[facing];
     const centerX = (player.x >> 8) + 8;
     const centerY = (player.y >> 8) + 9;
     const distance = CFG.teleportDistance * 8;
@@ -1281,8 +1333,8 @@
 
     let destination = null;
     for (const radius of candidates) {
-      const x = Math.round(centerX + unitX * radius) - 8;
-      const y = Math.round(centerY + unitY * radius) - 9;
+      const x = centerX + ((unitX * radius + 128) >> 8) - 8;
+      const y = centerY + ((unitY * radius + 128) >> 8) - 9;
       if (!boxBlocked(x, y, PBOX, false, true)) {
         destination = [x, y];
         break;
@@ -1290,8 +1342,8 @@
     }
     if (!destination) return false;
 
-    const entryX = Math.round(centerX + unitX * 8) - 8;
-    const entryY = Math.round(centerY + unitY * 8) - 9;
+    const entryX = centerX + ((unitX * 8 + 128) >> 8) - 8;
+    const entryY = centerY + ((unitY * 8 + 128) >> 8) - 9;
     player.facing = facing;
     player.tp = {
       step: 0,
@@ -1328,28 +1380,26 @@
   // Abeja: vuelo err�tico. Rumbo continuo con bandazos sinusoidales, giros bruscos aleatorios y espiral alrededor del objetivo.
   function updateBee(e, target) {
     e.t = (e.t || 0) + 1;
-    if (e.heading === undefined) { e.heading = Math.random() * Math.PI * 2; e.phase = Math.random() * 6.28; e.turnT = 0; e.turn = 0; }
+    if (e.heading === undefined) { e.heading = rnd(256); e.phase = rnd(256); e.turnT = 0; e.turn = 0; }
     if (--e.turnT <= 0) {
-      e.turnT = 8 + ((Math.random() * 25) | 0);
-      e.turn = (Math.random() * 2 - 1) * 0.5;
+      e.turnT = 8 + rnd(25);
+      e.turn = rnd(11) - 5;
     }
     let desired = e.heading;
     const chase = target && target[0] * target[0] + target[1] * target[1] <= (CFG.chaseRange * 8 * 2) ** 2;
     if (chase) {
-      const toward = Math.atan2(target[1], target[0]);
-      let diff = toward - e.heading;
-      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      desired = e.heading + Math.max(-0.12, Math.min(0.12, diff));
+      const toward = atan2b(target[1], target[0]);
+      const diff = ((toward - e.heading + 128) & 255) - 128;
+      desired = e.heading + Math.max(-5, Math.min(5, diff));
     }
-    e.heading = desired + e.turn * 0.25 + Math.sin(e.t * 0.2 + e.phase) * 0.18;
-    const speed = CFG.enemySpeed * e.speedMul * (e.speedScale || 1) * 256;
-    let vx = Math.round(Math.cos(e.heading) * speed), vy = Math.round(Math.sin(e.heading) * speed);
-    if (!tryMove(e, vx, 0, e.box, false, (x, y) => enemyBlocks(e, x, y))) e.heading = Math.PI - e.heading + (Math.random() - 0.5);
-    if (!tryMove(e, 0, vy, e.box, false, (x, y) => enemyBlocks(e, x, y))) e.heading = -e.heading + (Math.random() - 0.5);
+    e.heading = (desired + e.turn + ((sinb(e.t * 8 + e.phase) * 7) >> 8)) & 255;
+    const speed = mulf(mulf(CFG.enemySpeed, e.speedMul), e.speedScale);
+    const vx = (cosb(e.heading) * speed + 128) >> 8, vy = (sinb(e.heading) * speed + 128) >> 8;
+    if (!tryMove(e, vx, 0, e.box, false, (x, y) => enemyBlocks(e, x, y))) e.heading = (128 - e.heading + rnd(41) - 20) & 255;
+    if (!tryMove(e, 0, vy, e.box, false, (x, y) => enemyBlocks(e, x, y))) e.heading = (-e.heading + rnd(41) - 20) & 255;
     e.moving = true;
     e.animT += 2;
-    const a = Math.round(Math.atan2(vy, vx) / (Math.PI / 4));
-    e.dir = (5 + a + 16) % 8;
+    e.dir = dirFromAngle(atan2b(vy, vx));
   }
 
   function updateEnemies() {
@@ -1367,15 +1417,15 @@
       e.moving = false;
       if (e.type === "bee") { updateBee(e, target); continue; }
       const chaseRange = CFG.chaseRange * 8;
-      const speedScale = (e.speedScale || 1) * e.speedMul;
+      const speedScale = mulf(e.speedScale, e.speedMul);
       if (!target || nearest > chaseRange * chaseRange) {
         if (e.wanderTimer <= 0) {
-          if (Math.random() < 0.25) {
+          if (rnd(4) === 0) {
             e.wanderDir = -1;
-            e.wanderTimer = 30 + ((Math.random() * 60) | 0);
+            e.wanderTimer = 30 + rnd(60);
           } else {
-            e.wanderDir = (Math.random() * DIRS.length) | 0;
-            e.wanderTimer = 40 + ((Math.random() * 80) | 0);
+            e.wanderDir = rnd(DIRS.length);
+            e.wanderTimer = 40 + rnd(80);
           }
         }
         e.wanderTimer--;
@@ -1383,7 +1433,7 @@
 
         const direction = DIRS[e.wanderDir];
         e.dir = e.wanderDir;
-        let speed = Math.round(CFG.enemySpeed * CFG.wanderFactor * speedScale * 256);
+        let speed = mulf(mulf(CFG.enemySpeed, CFG.wanderFactor), speedScale);
         if (direction[0] && direction[1]) speed = (speed * DIAG) >> 8;
         e.moving = tryMove(
           e,
@@ -1399,10 +1449,9 @@
       }
 
       if (nearest < 9 + (half - 4) * (half - 4)) continue;
-      const angle = Math.round(Math.atan2(target[1], target[0]) / (Math.PI / 4));
-      e.dir = (5 + angle + 16) % 8;
+      e.dir = dirFromAngle(atan2b(target[1], target[0]));
       const direction = DIRS[e.dir];
-      let speed = Math.round(CFG.enemySpeed * speedScale * 256);
+      let speed = mulf(CFG.enemySpeed, speedScale);
       if (direction[0] && direction[1]) speed = (speed * DIAG) >> 8;
       e.moving = tryMove(
         e,
@@ -1464,7 +1513,7 @@
     }
 
     if (moving) {
-      let sp = Math.round(playerSpeed(p) * 256);
+      let sp = playerSpeed(p);
       if (dx && dy) sp = (sp * DIAG) >> 8;
       tryMove(p, dx * sp, dy * sp, PBOX, true);
     }
@@ -1489,34 +1538,31 @@
     if (p.slash > 0) p.slash--;
     if (p.reloadT > 0 && --p.reloadT === 0) { p.ammo = ammoMax(p); sfx("reload"); }
     if (firing && p.cd === 0 && p.reloadT === 0) {
-      const d = DIRS[p.facing];
-      const len = Math.hypot(d[0], d[1]);
+      const d = DIRS[p.facing], u = DIRU[p.facing];
       if (p.ch.weapon === "sword") {
-        const cx = (p.x >> 8) + 8 + (d[0] / len) * 12, cy = (p.y >> 8) + 12 + (d[1] / len) * 12;
-        const r = { x: Math.round(cx - 8), y: Math.round(cy - 8), w: 16, h: 16 };
+        const cx = (p.x >> 8) + 8 + ((u[0] * 12 + 128) >> 8), cy = (p.y >> 8) + 12 + ((u[1] * 12 + 128) >> 8);
+        const r = { x: cx - 8, y: cy - 8, w: 16, h: 16 };
         p.slashRect = r;
         p.slash = 4;
         for (const e of enemies) {
           if (e.hp > 0 && overlap(e.x >> 8, e.y >> 8, e.box, 0, 0, r)) damageEnemy(e, 1 + lv("dmg"));
         }
         for (const [ox, oy] of [[2, 2], [10, 2], [2, 10], [10, 10]]) checkBulletHitItems(r.x + ox + 2, r.y + oy + 2);
-        p.cd = Math.max(1, Math.round(59.73 / fireRate(p)));
+        p.cd = fireDelay(p);
         sfx("hit");
         stats.shots++;
       } else {
-        let vx = d[0] * CFG.bulletSpeed, vy = d[1] * CFG.bulletSpeed;
-        if (d[0] && d[1]) { vx = (vx * DIAG) >> 8; vy = (vy * DIAG) >> 8; }
+        let vx = (u[0] * CFG.bulletSpeed) >> 8, vy = (u[1] * CFG.bulletSpeed) >> 8;
         const gun = p.ch.weapon === "gun";
         if (gun) {
-          const a = Math.atan2(vy, vx) + (Math.random() - 0.5) * 0.6;
-          const s = Math.hypot(vx, vy);
-          vx = Math.round(Math.cos(a) * s); vy = Math.round(Math.sin(a) * s);
+          const a = DIR_ANG[p.facing] + rnd(25) - 12;
+          vx = (cosb(a) * CFG.bulletSpeed) >> 8; vy = (sinb(a) * CFG.bulletSpeed) >> 8;
         } else {
           tryMove(p, -d[0] * 256, -d[1] * 256, PBOX, true);
         }
         const tip = BAZOOKA_TIP[p.facing][p.row % 2 ? 1 : 0];
-        bullets.push({ x: ((p.x >> 8) + tip[0]) * 256 + 128, y: ((p.y >> 8) + tip[1]) * 256 + 128, vx, vy, life: Math.round(bulletRange()) << 8, direct: gun });
-        p.cd = Math.max(1, Math.round(59.73 / fireRate(p)));
+        bullets.push({ x: ((p.x >> 8) + tip[0]) * 256 + 128, y: ((p.y >> 8) + tip[1]) * 256 + 128, vx, vy, life: bulletRange() << 8, direct: gun });
+        p.cd = fireDelay(p);
         if (!gun || stats.shots % 3 === 0) sfx("shot");
         stats.shots++;
         if (--p.ammo <= 0) { p.reloadT = reloadFrames(); sfx("empty"); }
@@ -1578,10 +1624,9 @@
     if (ult === "beam") {
       if (p.mana < CFG.specialCharge) p.mana = Math.min(CFG.specialCharge, p.mana + manaRegen());
       else if (input.pressed[p.id] & BTN.SELECT) {
-        const d = DIRS[p.facing];
-        const len = Math.hypot(d[0], d[1]);
+        const u = DIRU[p.facing];
         const s = CFG.bulletSpeed;
-        bullets.push({ x: ((p.x >> 8) + 8) * 256, y: ((p.y >> 8) + 12) * 256, vx: Math.round(d[0] / len * s), vy: Math.round(d[1] / len * s), life: 480 << 8, beam: true });
+        bullets.push({ x: ((p.x >> 8) + 8) * 256, y: ((p.y >> 8) + 12) * 256, vx: (u[0] * s) >> 8, vy: (u[1] * s) >> 8, life: 480 << 8, beam: true });
         p.mana = 0;
         sfx("special");
       }
@@ -1598,17 +1643,16 @@
       return;
     }
     if (sel && (p.sp || p.mana >= CFG.specialCharge)) {
-      const d = DIRS[p.facing];
-      const len = Math.hypot(d[0], d[1]);
+      const d = DIRS[p.facing], u = DIRU[p.facing];
       let w = specialSize(), h = w;
       if (ult === "burst") {
         const long = 5 + lv("spArea");
         [w, h] = d[0] ? [long, 2] : [2, long];
       }
       const dist = (d[0] ? w : h) * 4 + 8;
-      const cx = (p.x >> 8) + 8 + (d[0] / len) * dist;
-      const cy = (p.y >> 8) + 9 + (d[1] / len) * dist;
-      p.sp = { state: "aim", w, h, tx: Math.floor(cx / 8) - (w >> 1), ty: Math.floor(cy / 8) - (h >> 1), t: 0 };
+      const cx = (p.x >> 8) + 8 + ((u[0] * dist + 128) >> 8);
+      const cy = (p.y >> 8) + 9 + ((u[1] * dist + 128) >> 8);
+      p.sp = { state: "aim", w, h, tx: (cx >> 3) - (w >> 1), ty: (cy >> 3) - (h >> 1), t: 0 };
     } else if (p.sp) {
       p.sp.state = "active";
       p.sp.t = 0;
@@ -1626,12 +1670,10 @@
 
   // Continuar: mismo mapa, oleada, monedas y cristales; los jugadores reviven con la vida completa.
   function continueGame() {
-    const spawn = [[120, 160], [160, 160]];
     players.forEach((p, i) => {
       if (!p.active) return;
       p.hp = maxHp(p);
-      p.x = spawn[i][0] << 8;
-      p.y = spawn[i][1] << 8;
+      [p.x, p.y] = startPos(i).map((v) => v << 8);
       p.inv = invulnFrames();
       p.hit = 0;
       p.tp = null;
@@ -1693,14 +1735,20 @@
     for (const p of players) updatePlayer(p);
 
     const live = players.filter(p => p.active && p.hp > 0);
+    const end = levelLogic && levelLogic.end;
+    if (end && !winDelay && live.length && live.every((p) => {
+      const cx = (p.x >> 8) + 8, cy = (p.y >> 8) + 8;
+      return cx >= end[0] && cx < end[0] + end[2] && cy >= end[1] && cy < end[1] + end[3];
+    })) { winDelay = 90; sfx("open"); }
     if (live.length) {
       let mx = 0, my = 0;
       for (const p of live) { mx += (p.x >> 8) + 8; my += (p.y >> 8) + 12; }
-      mx /= live.length; my /= live.length;
-      const tx = Math.max(0, Math.min(MAP_W * 8 - 160, Math.round(mx - 80)));
-      const ty = Math.max(0, Math.min(MAP_H * 8 - VIEW_H, Math.round(my - VIEW_H / 2)));
-      cam.x += Math.trunc((tx - cam.x) / 4);
-      cam.y += Math.trunc((ty - cam.y) / 4);
+      if (live.length > 1) { mx >>= 1; my >>= 1; }
+      const tx = Math.max(0, Math.min(MAP_W * 8 - 160, mx - 80));
+      const ty = Math.max(0, Math.min(MAP_H * 8 - VIEW_H, my - (VIEW_H >> 1)));
+      const dxc = tx - cam.x, dyc = ty - cam.y;
+      cam.x += dxc < 0 ? -((-dxc) >> 2) : dxc >> 2;
+      cam.y += dyc < 0 ? -((-dyc) >> 2) : dyc >> 2;
     }
 
     // Proyectiles
@@ -1780,7 +1828,7 @@
     if (!players.some(p => p.active && p.hp > 0)) gameOver = true;
   }
 
-  // Version "golpeada" de una imagen: cada verde de la rampa pasa al siguiente mas claro.
+  // Version "golpeada" de una imagen: la rampa de verdes se invierte (oscuro <-> claro), como una paleta alternativa.
   const hitImages = {};
   const HIT_RAMP = [0x0f380f, 0x2a4e19, 0x55742a, 0x7a953a];
   function makeHitImage(img, brighten = false) {
@@ -1795,12 +1843,12 @@
       for (let i = 0; i < px.length; i += 4) {
         if (px[i + 3] === 0) continue;
         if (brighten) {
-          for (let j = 0; j < 3; j++) px[i + j] = Math.min(255, px[i + j] + 60);
+          for (let j = 0; j < 3; j++) px[i + j] = Math.min(255, px[i + j] + 110);
           continue;
         }
         const k = HIT_RAMP.indexOf((px[i] << 16) | (px[i + 1] << 8) | px[i + 2]);
-        if (k < 0 || k === HIT_RAMP.length - 1) continue;
-        const n = HIT_RAMP[k + 1];
+        if (k < 0) continue;
+        const n = HIT_RAMP[HIT_RAMP.length - 1 - k];
         px[i] = n >> 16; px[i + 1] = (n >> 8) & 255; px[i + 2] = n & 255;
       }
       c.putImageData(data, 0, 0);
@@ -1814,24 +1862,27 @@
     const screenX = tx * 8 - cam.x;
     const screenY = ty * 8 - cam.y;
     const sourceX = (tileId % 32) * 8;
-    const sourceY = Math.floor(tileId / 32) * 8;
+    const sourceY = (tileId >> 5) * 8;
     const flags = attr || 0;
     ctx.save();
     ctx.translate(screenX + 4, screenY + 4);
-    if (flags & 0x10) ctx.transform(0, 1, 1, 0, 0, 0);
-    if (flags & 0x20) ctx.scale(-1, 1);
+   if (flags & 0x20) ctx.scale(-1, 1);
     if (flags & 0x40) ctx.scale(1, -1);
     ctx.drawImage(hit && hitImages.tileset ? hitImages.tileset : assets.tilesetImage, sourceX, sourceY, 8, 8, -4, -4, 8, 8);
     ctx.restore();
   }
 
   // ------------------------------------------------------------ HUD (2 tiles de alto, parte inferior)
-  const GLYPH_COIN = 178, GLYPH_HEART = 179;
+  const GLYPH_COIN = 146, GLYPH_HEART = 147, GLYPH_DIGIT0 = 127; // digitos: 128-136 = 1-9, 137 = 0
 
-  // Texto: los glifos de la fuente 8x8 (ancho proporcional) se componen en la fila 5 del tileset
-  // (ids 128-159, 32 tiles) y despues se pintan como tiles.
+  // Texto: los glifos de la fuente 8x8 (ancho proporcional) se componen en 32 tiles libres del tileset
+  // (ids 74-92 y 106-118, transparentes en el PNG) y despues se pintan como tiles.
   const FONT_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,";
-  const TEXT_TILE0 = 128, TEXT_TILES = 32, SPACE_W = 3;
+  const TEXT_IDS = [];
+  for (let i = 74; i <= 92; i++) TEXT_IDS.push(i);
+  for (let i = 106; i <= 118; i++) TEXT_IDS.push(i);
+  const TEXT_TILES = TEXT_IDS.length, SPACE_W = 3;
+  const TEXT_SLOT = new Map(TEXT_IDS.map((id, i) => [id, i]));
   const fontGlyphs = {};
   let tileBufCtx = null, lastText = null;
 
@@ -1886,7 +1937,7 @@
     lastText = s;
     }
     const tiles = Math.min(TEXT_TILES, Math.ceil(w / 8));
-    for (let i = 0; i < tiles; i++) drawGlyph(ctx, TEXT_TILE0 + i, x + i * 8, y);
+    for (let i = 0; i < tiles; i++) drawGlyph(ctx, TEXT_IDS[i], x + i * 8, y);
   }
   const drawTextCentered = (ctx, str, y, cx = GBC_W >> 1) => drawText(ctx, str, cx - (textWidth(str) >> 1), y);
 
@@ -1933,7 +1984,7 @@
     ctx.fillRect(0, 0, GBC_W, VIEW_H);
     const center = (str, y) => drawTextCentered(ctx, str, y);
     center("GAME OVER", 8);
-    const secs = (stats.time / 59.73) | 0;
+    const secs = (stats.time * 137) >> 13;
     const mm = String((secs / 60) | 0).padStart(2, "0"), ss = String(secs % 60).padStart(2, "0");
     const rows = [
       ["OLEADA", wave],
@@ -1968,14 +2019,14 @@
 
 
   function drawGlyph(ctx, id, x, y) {
-    if (id >= TEXT_TILE0 && id < TEXT_TILE0 + TEXT_TILES) ctx.drawImage(assets.textBuffer, (id - TEXT_TILE0) * 8, 0, 8, 8, x, y, 8, 8);
+    if (TEXT_SLOT.has(id)) ctx.drawImage(assets.textBuffer, TEXT_SLOT.get(id) * 8, 0, 8, 8, x, y, 8, 8);
     else ctx.drawImage(assets.tilesetImage, (id % 32) * 8, ((id / 32) | 0) * 8, 8, 8, x, y, 8, 8);
   }
 
   function drawNumber(ctx, value, x, y) {
     for (const ch of String(value)) {
       const d = Number(ch);
-      drawGlyph(ctx, d === 0 ? 169 : 159 + d, x, y);
+      drawGlyph(ctx, GLYPH_DIGIT0 + (d === 0 ? 10 : d), x, y);
       x += 8;
     }
   }
@@ -2014,7 +2065,7 @@
         ctx.fillStyle = "#0f380f";
         ctx.fillRect(x0 + 1, top + 11, 46, 2);
         ctx.fillStyle = full && ((frame >> 3) & 1) ? "#7a953a" : "#55742a";
-        ctx.fillRect(x0 + 1, top + 11, Math.floor(46 * p.mana / CFG.specialCharge), 2);
+        ctx.fillRect(x0 + 1, top + 11, Math.min(46, (p.mana * 5) >> 8), 2);
       }
     }
   }
@@ -2033,10 +2084,10 @@
       return;
     }
 
-    const firstTileX = Math.max(0, Math.floor(cam.x / 8));
-    const lastTileX = Math.min(MAP_W - 1, Math.floor((cam.x + GBC_W - 1) / 8));
-    const firstTileY = Math.max(0, Math.floor(cam.y / 8));
-    const lastTileY = Math.min(MAP_H - 1, Math.floor((cam.y + VIEW_H - 1) / 8));
+    const firstTileX = Math.max(0, cam.x >> 3);
+    const lastTileX = Math.min(MAP_W - 1, (cam.x + GBC_W - 1) >> 3);
+    const firstTileY = Math.max(0, cam.y >> 3);
+    const lastTileY = Math.min(MAP_H - 1, (cam.y + VIEW_H - 1) >> 3);
 
     const spCells = new Set();
     for (const p of players) {
@@ -2075,7 +2126,7 @@
     }
 
     for (const effect of teleportEffects) {
-      const spriteFrame = Math.min(7, Math.floor(effect.age / 2));
+      const spriteFrame = Math.min(7, effect.age >> 1);
       ctx.drawImage(
         assets.teleportImage,
         spriteFrame * 16, 0, 16, 16,
@@ -2164,8 +2215,9 @@
       const px = (e.x >> 8) - cam.x, py = (e.y >> 8) - cam.y;
       const frameIndex = e.moving ? ((e.animT / CFG.enemyAnimFrames) | 0) & 1 : 0;
       const img = assets[e.sprite];
-      const src = e.type === "bee" ? img && [(((frame >> 1) + (e.id || 0)) & 1) * 8, 0] : [e.dir * 8, frameIndex * 8];
-      ctx.drawImage(e.hit > 0 ? hitImages[e.sprite] || img : img, src[0], src[1], 8, 8, px, py, e.size, e.size);
+      const src = e.type === "bee" ? img && [(((frame >> 1) + (e.id || 0)) & 1) * 8, 0] : [e.dir * e.size, frameIndex * e.size];
+      const sw = e.type === "bee" ? 8 : e.size;
+      ctx.drawImage(e.hit > 0 ? hitImages[e.sprite] || img : img, src[0], src[1], sw, sw, px, py, e.size, e.size);
     }
     drawHud(ctx);
     if (gameOver) drawGameOver(ctx);
@@ -2218,6 +2270,7 @@
   function openSettings() { screen = "settings"; setSel = 0; }
 
   function updateMenu() {
+    rand16(); // la semilla depende del momento en que el jugador pulsa
     const pr0 = input.pressed[0], pr1 = input.pressed[1];
     const any = pr0 | pr1;
     const ok = any & (BTN.A | BTN.START), back = any & BTN.B;
@@ -2437,6 +2490,7 @@
     hitImages.kurtImage = makeHitImage(assets.kurtImage, true);
     hitImages.skreekImage = makeHitImage(assets.skreekImage, true);
     hitImages.enemyImage = makeHitImage(assets.enemyImage);
+    hitImages.bigSlugImage = makeHitImage(assets.bigSlugImage);
     hitImages.beeImage = makeHitImage(assets.beeImage, true);
     MAP_W = assets.itemsMap.w;
     MAP_H = assets.itemsMap.h;
@@ -2447,13 +2501,13 @@
     fondoLayer = assets.backgroundMap.data.slice();
     fondoAttrs = assets.backgroundMap.attrs.slice();
     baseLevel = { fondo: fondoLayer.slice(), fondoAttrs: fondoAttrs.slice(), items: initialItemsLayer.slice(), itemsAttrs: initialItemsAttrs.slice() };
+    level1Level = { fondo: assets.level1Fondo.data.slice(), fondoAttrs: assets.level1Fondo.attrs.slice(), items: assets.level1Items.data.slice(), itemsAttrs: assets.level1Items.attrs.slice(), logic: assets.level1Logic };
 
     gbc.ctx.imageSmoothingEnabled = false;
 
     for (let i = 0; i < MAP_W * MAP_H; i++) syncMapCell(i);
 
-    resetGame();
-    input.extraKeyHandlers.KeyP = () => { paused = !paused; };
+    resetGame(); window.__t = { players: () => players, enemies: () => enemies, level: () => level, logic: () => levelLogic }; // TEMP = () => { paused = !paused; };
 
     const STEP = 1000 / 59.73;
     let last = performance.now(), acc = 0;

@@ -65,12 +65,17 @@ aparece junto a J1 cuando se une.
 - `tools/convert_portraits.py` recorta los retratos de `assets/selection Screen.png`
   y los pasa a 4 verdes (`assets/portraits.png`).
 - Los textos usan `assets/font_8x8.png` (ancho proporcional): se componen en un
-  buffer propio de 32 tiles (ids 128-159) y se pintan como tiles.
+  buffer propio de 32 tiles sueltos (ids 74-92 y 106-118) y se pintan como tiles.
 - Tiles compuestos: los items con transparencia (detectados por alfa en el tileset),
   las monedas (25) y las alertas (93 cofre, 126/127 cristal) se dibujan como un tile
-  buffer (suelo + item) de un pool de 128 huecos, que se libera al desaparecer el item.
+  buffer (suelo + item) de un pool de 96 huecos (ids 160-255, filas 6-8), que se libera al desaparecer el item.
   Las monedas caen (1 px mas arriba durante 0,1 s) y salen escalonadas en grupos de 1-3.
   Al empujar un cofre o cristal, sus tiles superiores se cambian por la alerta.
+- Logica en enteros (pensada para portarla a Game Boy): posiciones y velocidades en 8.8
+  (256 = 1 px), angulos de 0-255 con tabla de seno y `atan2b`, RNG xorshift de 16 bits
+  (`rnd`, `shuffle`), sin `Math.random/hypot/atan2/sin/cos` en el juego. Los
+  multiplicadores de `CFG` y de los personajes tambien son 8.8; `fireDelay` son frames entre disparos.
+- El hardware no tiene flip diagonal: las celdas del CSV con ese flag se ignoran al cargar.
 
 Los datos de mapa usan los IDs locales exportados desde Tiled: el juego aplica
 las banderas de volteo y dibuja cada tile directamente desde el PNG original.
