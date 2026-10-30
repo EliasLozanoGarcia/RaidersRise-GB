@@ -1,0 +1,64 @@
+config.js
+Es el punto de partida. Crea el canvas, el objeto GBC y el Input. Define CFG, que reúne todos los parámetros ajustables del juego: velocidades, vida, munición, tipos de enemigo y tamaño de las oleadas. También carga y guarda los ajustes del jugador (idioma y volúmenes) en localStorage.
+
+tuning.js
+Construye el panel de sliders que permite cambiar los valores de CFG mientras juegas. Solo depende de CFG, así que puedes quitarlo en la versión final sin romper nada.
+
+audio.js
+Sonido chiptune con WebAudio: la función tone (ondas cuadradas y ruido) y la tabla SFX con todos los efectos (disparo, explosión, moneda, golpe, etc.). La función sfx(nombre) es la que usa el resto del código. Respeta los volúmenes de los ajustes.
+
+utils.js
+Utilidades básicas: hitboxes (PBOX, EBOX, BBOX), las 8 direcciones, matemática entera de 8.8 (seno, coseno, atan2b), el generador aleatorio rnd (sin Math.random), shuffle, el tamaño del mapa y la variable assets.
+
+tiles.js
+Todo lo relacionado con el mapa a nivel de tile:
+
+Las capas itemsLayer y fondoLayer.
+Los tiles compuestos para transparencias.
+La animación de caída de monedas.
+Las tablas de colisión y boxBlocked, que dice si una caja choca con el mapa.
+
+physics.js
+El movimiento con colisiones: tryMove, nudge (esquivar esquinas), enemyBlocks (enemigos que se bloquean entre sí) y findFree (buscar un hueco libre).
+
+interactives.js
+Los objetos del mapa con los que se interactúa:
+
+Pinchos.
+Cofres de monedas.
+Cristales.
+Puertas empujables.
+Cajas de maná.
+Barreras destruibles.
+
+Incluye cullItems, que elige al azar qué objetos aparecen al cargar el nivel.
+
+state.js
+El estado global de la partida: cámara, oleada, listas de jugadores, enemigos y balas, estadísticas y la función overlap para detectar solapes.
+
+upgrades.js
+Los personajes (Kathy, Kurt, Skreek) con sus estadísticas, las fórmulas que derivan de las mejoras (vida máxima, cadencia, velocidad...) y la tienda entre niveles. Aquí está openShop, updateShop y el paso al siguiente nivel.
+
+levels.js
+Carga de los niveles hechos a mano. Incluye useLayout, la posición inicial de los jugadores y resetGame, que reinicia la partida.
+
+entities.js
+Las entidades vivas del juego:
+
+Creación del jugador.
+Generación de oleadas y enemigos.
+Comportamiento de enemigos (perseguir, vagar, vuelo de la abeja).
+Daño y explosiones.
+Teletransporte.
+updatePlayer: movimiento, disparo, espada, recogida de objetos.
+Habilidades especiales.
+continueGame.
+
+render.js
+Todo lo que se dibuja: las imágenes de “golpe”, el sistema de texto con fuente propia, el HUD, las pantallas de tienda y game over, y la función render(), que pinta mapa, jugadores, balas y enemigos. También limita los sprites por pantalla al estilo Game Boy.
+
+menus.js
+Las pantallas fuera de la partida: splash, selección de personaje (con unión del jugador 2), galería de Raiders, ficha de personaje y ajustes. Incluye los textos en español e inglés.
+
+main.js
+Contiene update(), que decide qué actualizar en cada frame (menús, tienda, game over o partida), y la función start(), que carga los recursos, inicializa todo y arranca el bucle principal a ~59,7 FPS.
