@@ -1,6 +1,6 @@
 """Extrae la capa de objetos "Logica" de un .tmx de Tiled a maps/<nombre>_Logic.json.
 
-Uso: python tools/convert_logic.py ../ART/Tilesmaps/Level1-1.tmx maps/Level1-1_Logic.json
+Uso: python tools/convert_logic.py ../ART/Tilesmaps/Level1-7.tmx maps/Level1-7_Logic.json
 
 Objetos reconocidos (por nombre): Start, End, EnemiSpawner. Los rectangulos se
 guardan en pixeles enteros [x, y, w, h].

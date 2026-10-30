@@ -57,7 +57,20 @@ window.DMGLoader = (function () {
 
   return {
     init: async function () {
-      const [tilesetImage, playerImage, kurtImage, skreekImage, splashTiles, splashMap, enemyImage, beeImage, bigSlugImage, teleportImage,       backgroundMap, itemsMap, level1Fondo, level1Items, level1Logic, fontImage, portraitsImage] = await Promise.all([
+      const [
+        tilesetImage,
+        playerImage,
+        kurtImage,
+        skreekImage,
+        splashTiles,
+        splashMap,
+        enemyImage,
+        beeImage,
+        bigSlugImage,
+        teleportImage,
+        fontImage,
+        portraitsImage
+      ] = await Promise.all([
         loadImage("assets/tileset_GBC_Urban.png"),
         loadImage("assets/Kathy_Sprites.png"),
         loadImage("assets/Kurt_Sprites.png"),
@@ -71,22 +84,53 @@ window.DMGLoader = (function () {
         loadImage("assets/enemies_Bee.png"),
         loadImage("assets/enemies_Slug_Big.png"),
         loadImage("assets/Teleport_GBC.png"),
-        loadMapCSV("maps/Leveltest._Fondo.csv"),
-        loadMapCSV("maps/Leveltest._Items.csv"),
-        loadMapCSV("maps/Level1-1_Fondo.csv"),
-        loadMapCSV("maps/Level1-1_Items.csv"),
-        fetch("maps/Level1-1_Logic.json").then((r) => {
-          if (!r.ok) throw new Error(`HTTP ${r.status} al cargar maps/Level1-1_Logic.json`);
-          return r.json();
-        }),
         loadImage("assets/font_8x8.png"),
         loadImage("assets/portraits.png")
       ]);
-      if (backgroundMap.w !== itemsMap.w || backgroundMap.h !== itemsMap.h
-        || level1Fondo.w !== backgroundMap.w || level1Items.w !== backgroundMap.w
-        || level1Fondo.h !== backgroundMap.h || level1Items.h !== backgroundMap.h) {
-        throw new Error("Todas las capas de los niveles deben tener las mismas dimensiones");
+
+      // Carga correlativa de todos los niveles Level1-1, Level1-2, Level1-3... que haya en maps/
+      const levels = [];
+      for (let i = 1; i <= 999; i++) {
+        try {
+          const fondo = await loadMapCSV(`maps/Level1-${i}_Fondo.csv`);
+          const items = await loadMapCSV(`maps/Level1-${i}_Items.csv`);
+          if (fondo.w !== items.w || fondo.h !== items.h) {
+            throw new Error(`Dimensiones distintas en Level1-${i}`);
+          }
+
+          // Intenta cargar su archivo _Logic.json (si algún nivel no tiene, pone null y no falla)
+          let logic = null;
+          try {
+            const logicRes = await fetch(`maps/Level1-${i}_Logic.json`);
+            if (logicRes.ok) logic = await logicRes.json();
+          } catch (err) {
+            logic = null;
+          }
+
+          levels.push({
+            w: fondo.w,
+            h: fondo.h,
+            fondo: fondo.data,
+            fondoAttrs: fondo.attrs,
+            items: items.data,
+            itemsAttrs: items.attrs,
+            logic: logic
+          });
+        } catch (e) {
+          // En cuanto no exista maps/Level1-X_Fondo.csv, termina de buscar niveles
+          break;
+        }
       }
+
+      if (levels.length === 0) {
+        throw new Error("No se encontró ningún nivel (ej: maps/Level1-1_Fondo.csv)");
+      }
+
+      // Mantenemos compatibilidad con las propiedades antiguas usando el primer nivel cargado
+      const first = levels[0];
+      const backgroundMap = { w: first.w, h: first.h, data: first.fondo, attrs: first.fondoAttrs };
+      const itemsMap = { w: first.w, h: first.h, data: first.items, attrs: first.itemsAttrs };
+
       return {
         tilesetImage,
         playerImage,
@@ -100,11 +144,12 @@ window.DMGLoader = (function () {
         teleportImage,
         backgroundMap,
         itemsMap,
-        level1Fondo,
-        level1Items,
-        level1Logic,
+        level1Fondo: backgroundMap,
+        level1Items: itemsMap,
+        level1Logic: first.logic,
         fontImage,
-        portraitsImage
+        portraitsImage,
+        levels
       };
     }
   };

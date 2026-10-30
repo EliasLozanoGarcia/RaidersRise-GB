@@ -828,7 +828,7 @@
         if (c.pushTime >= 270) {
           c.mined = true;
           pusher.crystals++;
-          winDelay = 90;
+         // winDelay = 90;
           sfx("open");
           for (let oy = 0; oy < 3; oy++) {
             for (let ox = 0; ox < 2; ox++) setItemTile((c.ty + oy) * MAP_W + c.tx + ox, -1);
@@ -994,7 +994,8 @@
     { key: "invuln", name: "INVULNERAB", base: 4, step: 3, max: 3 },
   ];
   const upgCost = (u) => u.base + u.step * lv(u.key);
-  let shop = null, winDelay = 0, level = 1;
+  let shop = null, level = 1;
+  let shopSource = "death"; // Puede ser "death"
 
   function totalCoins() {
     return players.reduce((n, p) => n + (p.active ? p.coins : 0), 0);
@@ -1019,12 +1020,27 @@
     return shuffle([pick, ...rest]);
   }
 
-  function openShop() {
+ // Modificamos openShop para que no avance de nivel, sino que mantenga el nivel actual
+  function openShop(source = "death") {
+    shopSource = source; // Guardamos si se abrió por morir ("death") o por ganar ("win")
     shop = { sel: 0, offers: rollOffers() };
-    if (!shop.offers.length) nextLevel();
+    if (!shop.offers.length) closeShopAndContinue();
   }
 
+  function closeShopAndContinue() {
+    shop = null;
+    //winDelay = 0;
+    
+    if (shopSource === "win") {
+      // Si veníamos de ganar el nivel (llegar al END), SÍ avanzamos al siguiente nivel
+      nextLevel();
+    } else {
+      // Si veníamos de morir, nos quedamos en el mismo nivel reviviendo
+      continueGame();
+    }
+  }
   function nextLevel() {
+    // Esto ahora solo se usará cuando se llegue a la zona END
     shop = null;
     level++;
     const saved = players.map((p) => ({ coins: p.coins, crystals: p.crystals, active: p.active }));
@@ -1037,7 +1053,7 @@
     const n = shop.offers.length;
     if (pr & BTN.UP) shop.sel = (shop.sel + n - 1) % n;
     if (pr & BTN.DOWN) shop.sel = (shop.sel + 1) % n;
-    if (pr & BTN.B) { nextLevel(); return; }
+    if (pr & BTN.B) { closeShopAndContinue(); return; } // Botón B para salir de la tienda y reanudar
     if (pr & (BTN.A | BTN.START)) {
       const u = shop.offers[shop.sel];
       if (upgCost(u) <= totalCoins()) {
@@ -1049,7 +1065,7 @@
           if (u.key === "mag") p.ammo = ammoMax(p);
         }
         shop = { sel: 0, offers: rollOffers() };
-        if (!shop.offers.length) nextLevel();
+        if (!shop.offers.length) closeShopAndContinue();
       } else {
         sfx("empty");
       }
@@ -1059,113 +1075,30 @@
   function newPlayer(i, x, y) {
     const ch = CHARS[chars[i]];
     const p = { id: i, ch, x: x << 8, y: y << 8, facing: 7, hp: 0, coins: 0, crystals: 0, cd: 0, ammo: 0, reloadT: 0, mana: CFG.specialCharge, sp: null,
-             inv: 0, animT: 0, row: 0, active: i === 0, hit: 0, tpCooldown: 0, slash: 0,
-             pushing: false, pushFacing: 7, pushAnimT: 0 };
+               inv: 0, animT: 0, row: 0, active: i === 0, hit: 0, tpCooldown: 0, slash: 0,
+               pushing: false, pushFacing: 7, pushAnimT: 0 };
     p.hp = maxHp(p);
     p.ammo = ammoMax(p);
     return p;
   }
 
-  // ------------------------------------------------------------ Niveles aleatorios (tileset urbano)
-  let baseLevel = null, level1Level = null, levelLogic = null;
-  const FLOOR_TILES = [49, 49, 49, 50, 50, 51, 52, 53, 54, 55];
+  // ------------------------------------------------------------ Niveles hechos a mano
+  let allLevels = [], levelLogic = null;
 
   function useLayout(l) {
     levelLogic = l.logic || null;
     fondoLayer = l.fondo.slice();
     fondoAttrs = l.fondoAttrs.slice();
-    for (let i = 0; i < fondoLayer.length; i++) if (fondoLayer[i] < 0) { fondoLayer[i] = 49; fondoAttrs[i] = 0; }
+    for (let i = 0; i < fondoLayer.length; i++) {
+      if (fondoLayer[i] < 0) { fondoLayer[i] = 49; fondoAttrs[i] = 0; }
+    }
     initialItemsLayer = l.items.slice();
     initialItemsAttrs = l.itemsAttrs.slice();
   }
 
-  function generateLevel(style) {
-    const n = MAP_W * MAP_H;
-    const fondo = new Array(n), fAttrs = new Array(n).fill(0);
-    const items = new Array(n).fill(-1), iAttrs = new Array(n).fill(0);
-    const bd = baseLevel.fondo, ba = baseLevel.fondoAttrs;
-    for (let y = 0; y < MAP_H; y++) {
-      for (let x = 0; x < MAP_W; x++) {
-        const i = y * MAP_W + x;
-        const edge = x === 0 || x === MAP_W - 1 || y < 2 || y >= MAP_H - 2;
-        if (!edge) { fondo[i] = FLOOR_TILES[rnd(FLOOR_TILES.length)]; continue; }
-        const sx = x === MAP_W - 1 && y >= 2 && y < MAP_H - 2 ? 0 : x;
-        const sy = y >= MAP_H - 2 ? y - (MAP_H - 2) : y;
-        const si = sy * MAP_W + sx;
-        fondo[i] = bd[si] < 0 ? 49 : bd[si]; fAttrs[i] = bd[si] < 0 ? 0 : ba[si];
-      }
-    }
-    const used = new Uint8Array(n);
-    for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) if (x < 1 || x > MAP_W - 2 || y < 2 || y > MAP_H - 3) used[y * MAP_W + x] = 1;
-    for (let y = 17; y <= 23; y++) for (let x = 12; x <= 23; x++) used[y * MAP_W + x] = 1;
-
-    const place = (pattern, tx, ty) => {
-      const h = pattern.length, w = pattern[0].length;
-      for (let y = -1; y <= h; y++) for (let x = -1; x <= w; x++) {
-        const cx = tx + x, cy = ty + y;
-        if (cx < 0 || cy < 0 || cx >= MAP_W || cy >= MAP_H || used[cy * MAP_W + cx]) return false;
-      }
-      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-        const i = (ty + y) * MAP_W + tx + x;
-        used[i] = 1;
-        if (pattern[y][x] >= 0) items[i] = pattern[y][x];
-      }
-      return true;
-    };
-    const scatter = (pattern, count) => {
-      const h = pattern.length, w = pattern[0].length;
-      for (let tries = 0; count > 0 && tries < 200; tries++) {
-        if (place(pattern, 2 + rnd(MAP_W - 4 - w), 2 + rnd(MAP_H - 4 - h))) count--;
-      }
-    };
-    const fenceRun = (len) => {
-      const row = [19];
-      for (let i = 0; i < len; i++) row.push(i & 1 ? 23 : 22);
-      row.push(20);
-      return [row];
-    };
-    const ROCK = [[64, 65, 64], [96, 97, 96]];
-    const SPIKES = [[14, 14, 14, 14, 14], [14, 14, 14, 14, 14]];
-    const CHEST = [[29, 29], [61, 61]];
-    const MANA = [[27, 28], [59, 60]];
-    const CRYSTAL = [[30, 31], [62, 63], [94, 95]];
-
-    if (style === 0) {
-      scatter(ROCK, 12);
-      for (let i = 0; i < 3; i++) scatter(fenceRun(2 + rnd(4)), 1);
-    } else if (style === 1) {
-      for (let i = 0; i < 9; i++) scatter(fenceRun(3 + rnd(5)), 1);
-      scatter(ROCK, 4);
-      scatter(SPIKES, 2);
-    } else {
-      // Recinto central de vallas con cuatro huecos
-      const x0 = 9, x1 = 22, y0 = 7, y1 = 14;
-      for (let x = x0; x <= x1; x++) {
-        if (x < 14 || x > 17) { items[y0 * MAP_W + x] = 22 + (x & 1); items[y1 * MAP_W + x] = 22 + (x & 1); }
-      }
-      for (let y = y0; y <= y1; y++) {
-        if (y < 9 || y > 12) { items[y * MAP_W + x0] = 19; items[y * MAP_W + x1] = 19; }
-      }
-      for (let y = y0 - 1; y <= y1 + 1; y++) for (let x = x0 - 1; x <= x1 + 1; x++) used[y * MAP_W + x] = 1;
-      scatter(ROCK, 7);
-      scatter(SPIKES, 3);
-      scatter(fenceRun(4), 2);
-    }
-    scatter(CHEST, 8);
-    scatter(MANA, 8);
-    // Garantiza al menos un cristal para poder superar el nivel.
-    for (let tries = 0; tries < 2000 && !items.includes(30); tries++) {
-      place(CRYSTAL, 2 + rnd(MAP_W - 6), 2 + rnd(MAP_H - 7));
-    }
-    scatter(CRYSTAL, 3);
-    return { fondo, fondoAttrs: fAttrs, items, itemsAttrs: iAttrs };
-  }
-
-  // Ciclo de 4 mapas por partida (Level1-1 con su logica, el original y 2 aleatorios); despues se repiten con mas enemigos.
   let layouts = [];
   function buildLayouts() {
-    const styles = shuffle([0, 1, 2]);
-    layouts = [level1Level, baseLevel, generateLevel(styles[0]), generateLevel(styles[1])];
+    layouts = shuffle(allLevels.slice());
   }
 
   // Posicion inicial de cada jugador: dentro del rectangulo "Start" del nivel, o fija si no lo tiene.
@@ -1183,7 +1116,7 @@
     if (!keepUpgrades) { upg = {}; level = 1; buildLayouts(); }
     pickLevel();
     shop = null;
-    winDelay = 0;
+    //winDelay = 0;
     itemsLayer = initialItemsLayer.slice();
     barrierHp.clear();
     barrierHit.clear();
@@ -1253,24 +1186,34 @@
     return entries[0][0];
   }
 
-  function spawnWave() {
+ function spawnWave() {
     wave++;
     const cycle = ((level - 1) / layouts.length) | 0;
     const count = Math.min(CFG.waveBase + cycle * 20 + (wave - 1) * CFG.wavePerWave, CFG.waveMax + cycle * 20);
     let spawned = 0;
-    const areas = levelLogic && levelLogic.spawners.length ? levelLogic.spawners : null;
+    
+    // Obtenemos las zonas de spawn del nivel actual (comprobando 'spawners' o 'enemies' según tu JSON)
+    const areas = levelLogic && (levelLogic.spawners || levelLogic.enemies);
+    
+    if (!areas || areas.length === 0) {
+      console.warn("Este nivel no tiene áreas de spawn definidas en su archivo Logic.");
+      return; // Si no hay áreas en el JSON, no spawnea fuera de ellas
+    }
+
     for (let i = 0; i < count * 4 && spawned < count; i++) {
-      let x, y;
-      if (areas) {
-        const r = areas[(i + wave - 1) % areas.length];
-        x = (r[0] + rnd(r[2] || 1)) >> 3;
-        y = (r[1] + rnd(r[3] || 1)) >> 3;
-      } else {
-        [x, y] = SPAWNS[(i + wave - 1) % SPAWNS.length];
-      }
-      const px = x * 8, py = y * 8;
+      // Elegimos una zona de spawn de las definidas en el JSON al azar o de forma cíclica
+      const r = areas[rnd(areas.length)];
+      
+      // r format esperado en Tiled: [x, y, ancho, alto] en píxeles (o tiles)
+      const tileX = (r[0] + rnd(r[2] || 16)) >> 3;
+      const tileY = (r[1] + rnd(r[3] || 16)) >> 3;
+
+      const px = tileX * 8, py = tileY * 8;
+      
+      // Evitar spawnear ENCIMA o muy cerca del jugador
       if (players.some((p) => p.active && p.hp > 0 && Math.abs((p.x >> 8) - px) < 48 && Math.abs((p.y >> 8) - py) < 48)) continue;
-      if (spawnEnemyAt(x, y, pickEnemyType())) spawned++;
+      
+      if (spawnEnemyAt(tileX, tileY, pickEnemyType())) spawned++;
     }
     waveTimer = spawned ? CFG.wavePause : 30;
   }
@@ -1689,11 +1632,26 @@
     goSel = 0;
   }
 
-  function update() {
+ function update() {
     if (screen !== "game") { updateMenu(); return; }
     if (shop) { updateShop(); return; }
-    if (winDelay > 0 && --winDelay === 0) { openShop(); return; }
+    
+    // 1. Declaramos primero las variables necesarias
+    const live = players.filter(p => p.active && p.hp > 0);
+    const end = levelLogic && levelLogic.end;
+
+    // 2. Comprobamos si se llega a la zona END aquí abajo
+    if (end && /*!winDelay &&*/ live.length && live.every((p) => {
+      const cx = (p.x >> 8) + 8, cy = (p.y >> 8) + 8;
+      return cx >= end[0] && cx < end[0] + end[2] && cy >= end[1] && cy < end[1] + end[3];
+    })) { 
+     // winDelay = 90; 
+      sfx("open"); 
+      openShop("win"); 
+    }
+
     if (!gameOver) stats.time++;
+    // ... resto del código de update ...
     if (gameOver) {
       const pr = input.pressed[0] | input.pressed[1];
       if (pr & (BTN.UP | BTN.DOWN)) goSel ^= 1;
@@ -1734,12 +1692,7 @@
     updateCoins();
     for (const p of players) updatePlayer(p);
 
-    const live = players.filter(p => p.active && p.hp > 0);
-    const end = levelLogic && levelLogic.end;
-    if (end && !winDelay && live.length && live.every((p) => {
-      const cx = (p.x >> 8) + 8, cy = (p.y >> 8) + 8;
-      return cx >= end[0] && cx < end[0] + end[2] && cy >= end[1] && cy < end[1] + end[3];
-    })) { winDelay = 90; sfx("open"); }
+  
     if (live.length) {
       let mx = 0, my = 0;
       for (const p of live) { mx += (p.x >> 8) + 8; my += (p.y >> 8) + 12; }
@@ -1825,7 +1778,10 @@
     }
 
     if (enemies.length === 0 && --waveTimer <= 0) spawnWave();
-    if (!players.some(p => p.active && p.hp > 0)) gameOver = true;
+    if (!players.some(p => p.active && p.hp > 0)) {
+  openShop("death"); // Viene de morir
+}
+  
   }
 
   // Version "golpeada" de una imagen: la rampa de verdes se invierte (oscuro <-> claro), como una paleta alternativa.
@@ -2500,9 +2456,21 @@
     initialItemsAttrs = itemsAttrs.slice();
     fondoLayer = assets.backgroundMap.data.slice();
     fondoAttrs = assets.backgroundMap.attrs.slice();
-    baseLevel = { fondo: fondoLayer.slice(), fondoAttrs: fondoAttrs.slice(), items: initialItemsLayer.slice(), itemsAttrs: initialItemsAttrs.slice() };
-    level1Level = { fondo: assets.level1Fondo.data.slice(), fondoAttrs: assets.level1Fondo.attrs.slice(), items: assets.level1Items.data.slice(), itemsAttrs: assets.level1Items.attrs.slice(), logic: assets.level1Logic };
-
+    // En lugar de baseLevel = ... y level1Level = ..., ponemos:
+    if (assets.levels && assets.levels.length) {
+      allLevels = assets.levels;
+    } else {
+      // Respaldo por si aún solo carga level1:
+      allLevels = [
+        {
+          fondo: assets.level1Fondo.data.slice(),
+          fondoAttrs: assets.level1Fondo.attrs.slice(),
+          items: assets.level1Items.data.slice(),
+          itemsAttrs: assets.level1Items.attrs.slice(),
+          logic: assets.level1Logic
+        }
+      ];
+    }
     gbc.ctx.imageSmoothingEnabled = false;
 
     for (let i = 0; i < MAP_W * MAP_H; i++) syncMapCell(i);
