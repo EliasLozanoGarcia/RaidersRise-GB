@@ -94,6 +94,50 @@ function enemyBlocks(enemy, nx, ny) {
   );
 }
 
+// Posicion libre mas cercana (resolucion de 1 px) para una caja atrapada: dentro de un tile solido o fuera de la
+// zona jugable (mapa / camara). Devuelve [x, y], o null si no hay hueco en maxR pixeles.
+function nearestFree(x, y, box, limitToCam, maxR = 64) {
+  const ok = (px, py) => !boxBlocked(px, py, box, false, limitToCam);
+  if (ok(x, y)) return [x, y];
+  for (let r = 1; r <= maxR; r++) {
+    let best = null, bestD = Infinity;
+    for (let oy = -r; oy <= r; oy++) {
+      for (let ox = -r; ox <= r; ox++) {
+        if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+        const d = ox * ox + oy * oy;
+        if (d < bestD && ok(x + ox, y + oy)) { best = [x + ox, y + oy]; bestD = d; }
+      }
+    }
+    if (best) return best;
+  }
+  return null;
+}
+
+// Saca a un jugador atrapado. snap = true: lo coloca al instante; si no, lo empuja 1 px por frame hacia el hueco.
+function unstickPlayer(p, snap) {
+  const px = p.x >> 8, py = p.y >> 8;
+  if (!boxBlocked(px, py, PBOX, false, true)) return false;
+  const f = nearestFree(px, py, PBOX, true);
+  if (!f) return false;
+  if (snap) { p.x = f[0] << 8; p.y = f[1] << 8; }
+  else { p.x += Math.sign(f[0] - px) * 256; p.y += Math.sign(f[1] - py) * 256; }
+  return true;
+}
+
+// Colision de una bala con muros (en el suelo: gy). Es permisiva en los bordes: ademas del punto central, tienen que
+// estar bloqueados los dos puntos a +-CFG.bulletEdgeSlack px en perpendicular a su trayectoria. Si solo roza una
+// esquina o el borde de un tile, el punto lateral esta libre y la bala sigue.
+function bulletBlocked(b, bx, gy) {
+  if (!boxBlocked(bx, gy, BBOX, true, false)) return false;
+  const e = CFG.bulletEdgeSlack;
+  if (!e) return true;
+  const ax = Math.abs(b.vx), ay = Math.abs(b.vy);
+  const sx = ax * 2 >= ay ? Math.sign(b.vx) : 0;
+  const sy = ay * 2 >= ax ? Math.sign(b.vy) : 0;
+  const px = -sy * e, py = sx * e; // perpendicular a la trayectoria
+  return boxBlocked(bx + px, gy + py, BBOX, true, false) && boxBlocked(bx - px, gy - py, BBOX, true, false);
+}
+
 function findFree(x, y, box, extra) {
   const isFree = (px, py) =>
     !boxBlocked(px, py, box) && !(extra && extra(px, py));

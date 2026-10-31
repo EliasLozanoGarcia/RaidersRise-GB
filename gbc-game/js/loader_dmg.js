@@ -3,7 +3,11 @@ window.DMGLoader = (function () {
 
   async function loadMapCSV(url) {
     const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status} al cargar ${url}`);
+    if (!response.ok) {
+      const err = new Error(`HTTP ${response.status} al cargar ${url}`);
+      err.notFound = response.status === 404;
+      throw err;
+    }
 
     const rows = (await response.text()).trim().split(/\r?\n/).map((line, rowIndex) => {
       const values = line.split(",").map((value) => {
@@ -11,10 +15,13 @@ window.DMGLoader = (function () {
         if (!Number.isInteger(parsed)) throw new Error(`Valor no valido en ${url}, fila ${rowIndex + 1}`);
         return parsed;
       });
-      if (values.length !== 32) throw new Error(`La fila ${rowIndex + 1} de ${url} tiene ${values.length} tiles; se esperaban 32`);
       return values;
     });
-    if (rows.length !== 32) throw new Error(`${url} tiene ${rows.length} filas; se esperaban 32`);
+    // El tamano del mapa se deduce del propio CSV (ej. 20x16); todas las filas deben tener el mismo ancho.
+    const w = rows[0].length, h = rows.length;
+    rows.forEach((row, rowIndex) => {
+      if (row.length !== w) throw new Error(`La fila ${rowIndex + 1} de ${url} tiene ${row.length} tiles; se esperaban ${w}`);
+    });
 
     const data = [];
     const attrs = [];
@@ -43,7 +50,7 @@ window.DMGLoader = (function () {
       }
     }
 
-    return { w: 32, h: 32, data, attrs };
+    return { w, h, data, attrs };
   }
 
   function loadImage(imageSrc) {
@@ -69,7 +76,9 @@ window.DMGLoader = (function () {
         bigSlugImage,
         teleportImage,
         fontImage,
-        portraitsImage
+        portraitsImage,
+        shotSmallImage,
+        shotBigImage
       ] = await Promise.all([
         loadImage("assets/tileset_GBC_Urban.png"),
         loadImage("assets/Kathy_Sprites.png"),
@@ -85,17 +94,28 @@ window.DMGLoader = (function () {
         loadImage("assets/enemies_Slug_Big.png"),
         loadImage("assets/Teleport_GBC.png"),
         loadImage("assets/font_8x8.png"),
-        loadImage("assets/portraits.png")
+        loadImage("assets/portraits.png"),
+        // Sprites de disparo: si faltan, el juego dibuja las balas como cuadrados (no es fatal).
+        loadImage("assets/disparo_Small.png").catch(() => null), // Kurt
+        loadImage("assets/disparo_Big.png").catch(() => null)    // Kathy
       ]);
 
       // Carga correlativa de todos los niveles Level1-1, Level1-2, Level1-3... que haya en maps/
       const levels = [];
       for (let i = 1; i <= 999; i++) {
         try {
-          const fondo = await loadMapCSV(`maps/Level1-${i}_Fondo.csv`);
+          let fondo;
+          try {
+            fondo = await loadMapCSV(`maps/Level1-${i}_Fondo.csv`);
+          } catch (e) {
+            // Sin mas niveles: 404, o (segun el servidor) un fallo de red al pedir un archivo inexistente
+            // ("Failed to fetch"). Solo si ya hay algun nivel cargado; si es el primero, es un error real.
+            if (e.notFound || (e instanceof TypeError && levels.length > 0)) break;
+            throw e;
+          }
           const items = await loadMapCSV(`maps/Level1-${i}_Items.csv`);
           if (fondo.w !== items.w || fondo.h !== items.h) {
-            throw new Error(`Dimensiones distintas en Level1-${i}`);
+            throw new Error(`Dimensiones distintas en Level1-${i}: Fondo ${fondo.w}x${fondo.h}, Items ${items.w}x${items.h}`);
           }
 
           // Intenta cargar su archivo _Logic.json (si algún nivel no tiene, pone null y no falla)
@@ -117,8 +137,8 @@ window.DMGLoader = (function () {
             logic: logic
           });
         } catch (e) {
-          // En cuanto no exista maps/Level1-X_Fondo.csv, termina de buscar niveles
-          break;
+          // Un nivel que existe pero esta mal formado ya no se ignora en silencio: se informa del motivo.
+          throw new Error(`Level1-${i}: ${e.message}`);
         }
       }
 
@@ -149,6 +169,8 @@ window.DMGLoader = (function () {
         level1Logic: first.logic,
         fontImage,
         portraitsImage,
+        shotSmallImage,
+        shotBigImage,
         levels
       };
     }

@@ -16,7 +16,7 @@ const SPAWNS = [[10, 10], [20, 10], [12, 25], [22, 26], [8, 18], [18, 18], [26, 
 
 function spawnEnemyAt(tileX, tileY, typeName) {
   const type = CFG.enemyTypes[typeName];
-  const box = type.size === 8 ? EBOX : { x: 2, y: 2, w: type.size - 4, h: type.size - 4 };
+  const box = type.size === 8 ? EBOX : { x: 2, y: 5, w: type.size - 4, h: type.size - 4 };
   for (let radius = 0; radius < Math.max(MAP_W, MAP_H); radius++) {
     for (let oy = -radius; oy <= radius; oy++) {
       for (let ox = -radius; ox <= radius; ox++) {
@@ -296,6 +296,7 @@ function updatePlayer(p) {
     updateTeleport(p);
     return;
   }
+  unstickPlayer(p, false); // si queda atrapado (muro o fuera del mapa), lo empuja hacia un hueco libre
 
   if (!firing) p.aim = null;
   else if (p.aim == null && !p.pushing) p.aim = p.facing;
@@ -377,7 +378,7 @@ function updatePlayer(p) {
         tryMove(p, -d[0] * 256, -d[1] * 256, PBOX, true);
       }
       const tip = BAZOOKA_TIP[p.facing][p.row % 2 ? 1 : 0];
-      bullets.push({ x: ((p.x >> 8) + tip[0]) * 256 + 128, y: ((p.y >> 8) + tip[1]) * 256 + 128, vx, vy, life: bulletRange() << 8, direct: gun });
+      bullets.push({ x: ((p.x >> 8) + tip[0]) * 256 + 128, y: ((p.y >> 8) + tip[1]) * 256 + 128, vx, vy, life: bulletRange() << 8, direct: gun, img: gun ? "shotSmallImage" : "shotBigImage" }); // Kurt (gun) / Kathy (cohete)
       p.cd = fireDelay(p);
       if (!gun || stats.shots % 3 === 0) sfx("shot");
       stats.shots++;

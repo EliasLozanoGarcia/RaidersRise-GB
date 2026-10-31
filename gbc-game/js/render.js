@@ -29,10 +29,10 @@ function makeHitImage(img, brighten = false) {
     return img;
   }
 }
-function drawMapTile(ctx, tx, ty, tileId, attr, hit = false) {
+function drawMapTile(ctx, tx, ty, tileId, attr, hit = false, dy = 0) {
   if (tileId < 0) return;
   const screenX = tx * 8 - cam.x;
-  const screenY = ty * 8 - cam.y;
+  const screenY = ty * 8 - cam.y + dy;
   const sourceX = (tileId % 32) * 8;
   const sourceY = (tileId >> 5) * 8;
   const flags = attr || 0;
@@ -279,7 +279,7 @@ function render() {
     for (let tx = firstTileX; tx <= lastTileX; tx++) {
       const idx = ty * MAP_W + tx;
       const fs = compSlot.get(idx);
-      if (fs !== undefined && !flashed(idx)) {
+      if (fs !== undefined && !flashed(idx) && !tileOffY.has(idx)) {
         if (!coinWaiting(idx) || fondoClear(idx)) ctx.drawImage(compCv, fs * 8, 0, 8, 8, tx * 8 - cam.x, ty * 8 - cam.y, 8, 8);
         continue;
       }
@@ -292,8 +292,8 @@ function render() {
       const idx = ty * MAP_W + tx;
       if (itemsLayer[idx] < 0 || coinWaiting(idx)) continue;
       const slot = compSlot.get(idx);
-      if (slot !== undefined && !flashed(idx)) continue;
-      drawMapTile(ctx, tx, ty, itemsLayer[idx], itemsAttrs[idx], flashed(idx));
+      if (slot !== undefined && !flashed(idx) && !tileOffY.has(idx)) continue;
+      drawMapTile(ctx, tx, ty, itemsLayer[idx], itemsAttrs[idx], flashed(idx), tileOffY.get(idx) || 0);
     }
   }
 
@@ -342,6 +342,11 @@ function render() {
       ctx.fillRect((b.x >> 8) - cam.x - 4, (b.y >> 8) - cam.y - 4, 8, 8);
       ctx.fillStyle = "#0f380f";
       ctx.fillRect((b.x >> 8) - cam.x - 2, (b.y >> 8) - cam.y - 2, 4, 4);
+      continue;
+    }
+    const shot = b.img && assets[b.img];
+    if (shot) { // sprite del disparo, centrado en la bala
+      ctx.drawImage(shot, (b.x >> 8) - cam.x - (shot.width >> 1), (b.y >> 8) - cam.y - (shot.height >> 1));
       continue;
     }
     if (b.direct) { ctx.fillRect((b.x >> 8) - cam.x - 1, (b.y >> 8) - cam.y - 1, 2, 2); continue; }

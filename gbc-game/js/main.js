@@ -84,12 +84,6 @@ function update() {
       continue;
     }
 
-    // Bala ya chocada: sigue avanzando unos frames (queda "encima" de lo que golpeo) y desaparece.
-    if (b.linger !== undefined) {
-      if (--b.linger <= 0) b.dead = true;
-      continue;
-    }
-
     if (b.beam) {
       for (const e of enemies) {
         if (e.hp > 0 && overlap(bx - 4, by - 4, { x: 0, y: 0, w: 8, h: 8 }, e.x >> 8, e.y >> 8, e.box)) damageEnemy(e, 99);
@@ -99,37 +93,48 @@ function update() {
       continue;
     }
 
+    // --- Enemigos: area de impacto generosa (la bala cuenta como una caja de (2*pad+1) px, no un punto).
+    // Va ANTES que las paredes: si toca a un enemigo en el mismo frame que un muro, el enemigo recibe el golpe.
+    // Tambien se comprueba mientras la bala sigue "chocada" (linger), para no perder impactos visibles.
+    const pad = CFG.bulletHitPad;
+    const hitBox = { x: -pad, y: -pad, w: 2 * pad + 1, h: 2 * pad + 1 };
     if (b.direct) {
-      const hit = enemies.find((e) => e.hp > 0 && overlap(bx, by, BBOX, e.x >> 8, e.y >> 8, e.box));
+      const hit = enemies.find((e) => e.hp > 0 && overlap(bx, by, hitBox, e.x >> 8, e.y >> 8, e.box));
       if (hit) {
         damageEnemy(hit, 1 + (lv("dmg") >> 1));
         b.dead = true;
         continue;
       }
+    } else {
+      for (const e of enemies) {
+        if (e.hp <= 0) continue;
+        const dx = (e.x >> 8) + 4 - bx;
+        const dy = (e.y >> 8) + 4 - by;
+        if (dx * dx + dy * dy <= CFG.fuseRadius * CFG.fuseRadius ||
+            overlap(bx, by, hitBox, e.x >> 8, e.y >> 8, e.box)) {
+          explode(bx, by);
+          sfx("explosion");
+          b.dead = true;
+          break;
+        }
+      }
+      if (b.dead) continue;
     }
 
-    // El disparo vuela a ~1 tile del suelo: su colision con paredes/items se calcula en el suelo.
-    const gy = by + CFG.bulletGroundOffset;
-    if (checkBulletHitItems(bx, gy) || boxBlocked(bx, gy, BBOX, true, false)) {
-      b.linger = CFG.bulletLinger; // en vez de morir al instante, se queda un poco mas
+    // Bala ya chocada: sigue avanzando unos frames (queda "encima" de lo que golpeo) y desaparece.
+    if (b.linger !== undefined) {
+      if (--b.linger <= 0) b.dead = true;
       continue;
     }
 
-    let detonated = b.direct;
-    for (const e of b.direct ? [] : enemies) {
-      if (e.hp <= 0) continue;
-      const dx = (e.x >> 8) + 4 - bx;
-      const dy = (e.y >> 8) + 4 - by;
-      if (dx * dx + dy * dy <= CFG.fuseRadius * CFG.fuseRadius ||
-          overlap(bx, by, BBOX, e.x >> 8, e.y >> 8, e.box)) {
-        explode(bx, by);
-        sfx("explosion");
-        b.dead = true;
-        detonated = true;
-        break;
-      }
+    // --- Paredes e items. El disparo vuela a ~1 tile del suelo: la colision con muros se calcula en el suelo
+    // (gy) para poder pasar por delante de cosas altas, pero con margen en los bordes (ver bulletBlocked).
+    // Lo destruible (barreras, cajas) se golpea tambien en la posicion VISUAL (by) y con margen lateral:
+    // si la bala se ve encima, hace dano.
+    const gy = by + CFG.bulletGroundOffset;
+    if (bulletHitsItems(bx, by, gy, pad) || bulletBlocked(b, bx, gy)) {
+      b.linger = CFG.bulletLinger; // en vez de morir al instante, se queda un poco mas
     }
-    if (detonated) continue;
   }
   bullets = bullets.filter(b => !b.dead);
   enemies = enemies.filter(e => e.hp > 0);
@@ -183,6 +188,8 @@ async function start() {
     // Respaldo por si aún solo carga level1:
     allLevels = [
       {
+        w: assets.level1Fondo.w,
+        h: assets.level1Fondo.h,
         fondo: assets.level1Fondo.data.slice(),
         fondoAttrs: assets.level1Fondo.attrs.slice(),
         items: assets.level1Items.data.slice(),

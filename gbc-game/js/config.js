@@ -24,7 +24,9 @@ const CFG = {
   barrierHp: 1, // impactos por estado de dano de las barreras (3 estados: 19/20 -> 21/22 -> 23/24 -> destruida)
   bulletSpeed: 3 * 256,
   bulletRange: 88,
-  bulletGroundOffset: 8,
+  bulletGroundOffset: 6,
+  bulletHitPad: 2,       // px a cada lado de la bala al impactar enemigos/objetos (caja de 2*pad+1 px, no un punto)
+  bulletEdgeSlack: 2,    // px de margen en los bordes de las paredes: si la bala solo roza una esquina, pasa
   bulletLinger: 4, // frames que la bala sigue avanzando tras chocar con pared/objeto, antes de desaparecer
   fireDelay: 40, // frames entre disparos
   ammoMax: 25,
