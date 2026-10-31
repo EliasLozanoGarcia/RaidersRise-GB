@@ -21,10 +21,11 @@ const CFG = {
   teleportStepFrames: 4,
   teleportEffectFrames: 32,
   hurtFlash: 6,
-  barrierHp: 3,
+  barrierHp: 1, // impactos por estado de dano de las barreras (3 estados: 19/20 -> 21/22 -> 23/24 -> destruida)
   bulletSpeed: 3 * 256,
   bulletRange: 88,
   bulletGroundOffset: 8,
+  bulletLinger: 4, // frames que la bala sigue avanzando tras chocar con pared/objeto, antes de desaparecer
   fireDelay: 40, // frames entre disparos
   ammoMax: 25,
   reloadFrames: 240,

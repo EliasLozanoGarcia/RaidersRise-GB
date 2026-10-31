@@ -4,6 +4,7 @@
 // ------------------------------------------------------------ Objetos Interactivos
 let spikes = [];
 let manaBoxes = [];
+const BARRIER_FIRST = 19, BARRIER_LAST = 24; // ids de las barreras destruibles (3 estados x 2 tiles)
 const barrierHp = new Map();
 const barrierHit = new Map();
 let coinChests = [];
@@ -385,16 +386,38 @@ function checkBulletHitItems(bx, by) {
   const idx = ty * MAP_W + tx;
   const t = itemsLayer[idx];
 
-  // Barreras destruibles (19 a 23): aguantan varios impactos y luego desaparecen
-  if (t >= 19 && t <= 23) {
-    const left = (barrierHp.get(idx) ?? CFG.barrierHp) - 1;
-    if (left <= 0) {
-      barrierHp.delete(idx);
-      barrierHit.delete(idx);
-      setItemTile(idx, -1);
+  // Barreras destruibles: parejas VERTICALES (arriba impar / abajo par) que se rompen como un solo bloque,
+  // con 3 estados de dano:  19/20 (entera) -> 21/22 (danada) -> 23/24 (muy danada) -> desaparece.
+  // CFG.barrierHp = impactos necesarios para pasar de un estado al siguiente.
+  if (t >= BARRIER_FIRST && t <= BARRIER_LAST) {
+    const isTop = (t & 1) === 1;
+    const partner = isTop ? idx + MAP_W : idx - MAP_W;               // celda de debajo / de encima
+    const hasPartner = itemsLayer[partner] === (isTop ? t + 1 : t - 1); // misma pareja y mismo estado
+    const top = isTop ? idx : (hasPartner ? partner : -1);
+    const key = top >= 0 ? top : idx;                                // la hp se guarda en la celda de arriba
+    const left = (barrierHp.get(key) ?? CFG.barrierHp) - 1;
+    const cells = hasPartner ? [idx, partner] : [idx];
+    if (left > 0) {
+      barrierHp.set(key, left);
+      for (const c of cells) barrierHit.set(c, CFG.hurtFlash);
     } else {
-      barrierHp.set(idx, left);
-      barrierHit.set(idx, CFG.hurtFlash);
+      barrierHp.delete(key);
+      let destroyed = false;
+      for (const c of cells) {
+        const id = itemsLayer[c];
+        if (id + 2 > BARRIER_LAST) { barrierHit.delete(c); setItemTile(c, -1); destroyed = true; } // ultimo estado: se destruye
+        else { setItemTile(c, id + 2, itemsAttrs[c]); barrierHit.set(c, CFG.hurtFlash); }         // siguiente estado
+      }
+      // Si encima habia otra barrera (parte alta) cuya mitad de abajo estaba tapada por esta, la celda de arriba
+      // del bloque destruido (pareja, o un 19 suelto) pasa a ser esa mitad de abajo (par), con el mismo
+      // nivel de rotura que la de arriba. Si debajo de un 19 solo habia pared, no hay nada que revelar.
+      const freed = hasPartner ? top : (isTop ? idx : -1);
+      if (destroyed && freed >= 0) {
+        const above = freed - MAP_W, aboveId = itemsLayer[above];
+        if (aboveId >= BARRIER_FIRST && aboveId < BARRIER_LAST && (aboveId & 1) === 1) {
+          setItemTile(freed, aboveId + 1, itemsAttrs[above]);
+        }
+      }
     }
     return true;
   }

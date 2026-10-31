@@ -84,6 +84,12 @@ function update() {
       continue;
     }
 
+    // Bala ya chocada: sigue avanzando unos frames (queda "encima" de lo que golpeo) y desaparece.
+    if (b.linger !== undefined) {
+      if (--b.linger <= 0) b.dead = true;
+      continue;
+    }
+
     if (b.beam) {
       for (const e of enemies) {
         if (e.hp > 0 && overlap(bx - 4, by - 4, { x: 0, y: 0, w: 8, h: 8 }, e.x >> 8, e.y >> 8, e.box)) damageEnemy(e, 99);
@@ -104,13 +110,8 @@ function update() {
 
     // El disparo vuela a ~1 tile del suelo: su colision con paredes/items se calcula en el suelo.
     const gy = by + CFG.bulletGroundOffset;
-    if (checkBulletHitItems(bx, gy)) {
-      b.dead = true;
-      continue;
-    }
-
-    if (boxBlocked(bx, gy, BBOX, true, false)) {
-      b.dead = true;
+    if (checkBulletHitItems(bx, gy) || boxBlocked(bx, gy, BBOX, true, false)) {
+      b.linger = CFG.bulletLinger; // en vez de morir al instante, se queda un poco mas
       continue;
     }
 
