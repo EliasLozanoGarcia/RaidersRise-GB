@@ -10,7 +10,6 @@ const STAT_BARS = [
   { label: "hp", key: "hp" },
   { label: "dmg", key: "dmg" },
 ];
-const CHAR_UI = [{ spd: 3, hp: 3, dmg: 3 }, { spd: 2, hp: 5, dmg: 5 }, { spd: 4, hp: 4, dmg: 4 }];
 
 const TXT = {
   es: { choose: "Elige personaje", pressA: "A elegir", ready: "Listo", spd: "Vel", hp: "Vida", dmg: "Dano", weapon: "Arma", special: "Especial",
@@ -23,14 +22,6 @@ const TXT = {
     hintRaiders: "Left/Right choose, F details, G back", hintSheet: "Left/Right change character, G back", hintSettings: "Up/Down choose, Left/Right change, G back" },
 };
 const tr = (k) => TXT[settings.lang ? "en" : "es"][k];
-const CHAR_INFO = [
-  { es: { weapon: "Bazuca con explosion que dana a los enemigos cercanos.", special: "Area 3x3 con dano continuo." },
-    en: { weapon: "Bazooka whose blast hurts nearby enemies.", special: "3x3 area with continuous damage." } },
-  { es: { weapon: "Ametralladora, 15 balas por segundo con dispersion. Mucha vida, pero lento.", special: "Area 5x2 con dano x3 instantaneo." },
-    en: { weapon: "Machine gun, 15 bullets per second with spread. Lots of HP, but slow.", special: "5x2 area with instant x3 damage." } },
-  { es: { weapon: "Espada, 5 golpes por segundo, alcance de 2 tiles. Rapido y resistente.", special: "Proyectil que atraviesa y destruye todo." },
-    en: { weapon: "Sword, 5 hits per second, 2 tile reach. Fast and sturdy.", special: "Projectile that pierces and destroys everything." } },
-];
 const charName = (i) => CHARS[i].name[0] + CHARS[i].name.slice(1).toLowerCase();
 
 function openSelect() {
@@ -166,7 +157,7 @@ function drawRoster(ctx) {
 
 function drawSheet(ctx) {
   drawBackdrop(ctx);
-  const i = rosterSel, ui = CHAR_UI[i], info = CHAR_INFO[i][settings.lang ? "en" : "es"];
+  const i = rosterSel, ui = CHARS[i].ui, info = CHARS[i].info[settings.lang ? "en" : "es"];
   ctx.fillStyle = "#7a953a";
   ctx.fillRect(6, 6, 64, 64);
   ctx.fillStyle = "#2a4e19";
@@ -234,7 +225,7 @@ function drawSelect(ctx) {
       if (pick.ready[pi]) { ctx.strokeStyle = "#7a953a"; ctx.strokeRect(bx + 0.5, by + 0.5, 43, 37); }
     }
   });
-  const ui = CHAR_UI[pick.cur[0]];
+  const ui = CHARS[pick.cur[0]].ui;
   STAT_BARS.forEach((s, i) => {
     const y = 100 + i * 9;
     drawText(ctx, tr(s.label), 8, y);

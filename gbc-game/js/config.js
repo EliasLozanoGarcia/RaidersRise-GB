@@ -48,17 +48,18 @@ const CFG = {
   // Limites de dibujado tipo Game Boy: si se superan, los sobrantes parpadean (rotan cada frame).
   maxSprites: 40,
   maxSpritesPerLine: 10,
-  // Tipos de enemigo: weight = frecuencia relativa de aparicion, speed = multiplicador de enemySpeed.
+  // Tipos de enemigo (clave = nombre usable en customSpawners.type de los Logic.json):
+  //   weight = frecuencia relativa de aparicion, speed = multiplicador de enemySpeed, size = 8 o 16 px,
+  //   ai = "walk" (persigue/vaga) | "fly" (vuelo errático), coin = suelta moneda al morir,
+  //   sheet = "dir" (columna por direccion, 2 frames) | "flap" (2 frames de 8x8 de aleteo).
   enemyTypes: {
-    slime: { weight: 10, hp: 2, speed: 256, size: 8, flying: false, sprite: "enemyImage" },
-    bigSlime: { weight: 1, hp: 4, speed: 128, size: 16, flying: false, sprite: "bigSlugImage" },
-    bee: { weight: 3, hp: 1, speed: 1280, size: 8, flying: true, sprite: "beeImage" },
+    slime: { weight: 10, hp: 2, speed: 256, size: 8, flying: false, sprite: "enemyImage", ai: "walk", coin: true, sheet: "dir" },
+    bigSlime: { weight: 1, hp: 4, speed: 128, size: 16, flying: false, sprite: "bigSlugImage", ai: "walk", coin: true, sheet: "dir" },
+    bee: { weight: 3, hp: 1, speed: 1280, size: 8, flying: true, sprite: "beeImage", ai: "fly", coin: false, sheet: "flap" },
   },
   playerHp: 4,
-  enemyHp: 2,
   invuln: 60,
   runAnimFrames: 6,
-  pushAnimFrames: 8,
   pushUpFrames: 9,
   pushSideFrames: 30,
   enemyAnimFrames: 14,

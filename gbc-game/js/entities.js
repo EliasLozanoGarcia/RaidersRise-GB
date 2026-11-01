@@ -11,8 +11,6 @@ function newPlayer(i, x, y) {
   return p;
 }
 
-const SPAWNS = [[10, 10], [20, 10], [12, 25], [22, 26], [8, 18], [18, 18], [26, 10], [6, 26]];
-
 function spawnEnemyAt(tileX, tileY, typeName) {
   const type = CFG.enemyTypes[typeName];
   const box = type.size === 8 ? EBOX : { x: 2, y: 2, w: type.size - 4, h: type.size - 4 };
@@ -32,6 +30,9 @@ function spawnEnemyAt(tileX, tileY, typeName) {
           flying: type.flying,
           sprite: type.sprite,
           speedMul: type.speed,
+          ai: type.ai,
+          coin: type.coin,
+          sheet: type.sheet,
           hp: type.hp,
           animT: 0,
           moving: false,
@@ -124,7 +125,7 @@ function damageEnemy(enemy, amount) {
   if (enemy.hp <= 0) return;
   enemy.hp = Math.max(0, enemy.hp - amount);
   enemy.hit = CFG.hurtFlash;
-  if (enemy.hp === 0) { if (enemy.type !== "bee") dropCoin(enemy); stats.kills++; sfx("enemyDie"); } else sfx("hit");
+  if (enemy.hp === 0) { if (enemy.coin) dropCoin(enemy); stats.kills++; sfx("enemyDie"); } else sfx("hit");
 }
 
 function explode(cx, cy) {
@@ -240,7 +241,7 @@ function updateEnemies() {
     }
 
     e.moving = false;
-    if (e.type === "bee") { updateBee(e, target); continue; }
+    if (e.ai === "fly") { updateBee(e, target); continue; }
     const chaseRange = CFG.chaseRange * 8;
     const speedScale = mulf(e.speedScale, e.speedMul);
     if (!target || nearest > chaseRange * chaseRange) {
@@ -405,7 +406,6 @@ function updatePlayer(p) {
         vx, vy, 
         life: bulletRange() << 8, 
         direct: gun, 
-        isKurt: gun, 
         bulletFrame, 
         mirror, 
         img: gun ? "shotSmallImage" : "shotBigImage" 

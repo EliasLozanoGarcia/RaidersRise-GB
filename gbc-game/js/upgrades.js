@@ -5,10 +5,22 @@
 let upg = {};
 const lv = (k) => upg[k] || 0;
 // Personajes: hp/speed son multiplicadores sobre Kathy; ammo multiplica el cargador.
+// Personajes. Para anadir uno: nueva entrada aqui + su hoja de sprites en loader_dmg.js + su imagen en HIT_SPRITES (main.js)
+// + su retrato en assets/portraits.png (30x30 por personaje, en orden).
+// ui = barras 1-5 de los menus; info = textos de la ficha en es/en.
 const CHARS = [
-  { name: "KATHY", img: "playerImage", hp: 256, speed: 256, ammo: 256, weapon: "rocket", ult: "area" },
-  { name: "KURT", img: "kurtImage", hp: 384, speed: 205, ammo: 922, delay: 4, dash: true, weapon: "gun", ult: "burst" },
-  { name: "SKREEK", img: "skreekImage", hp: 320, speed: 294, ammo: 256, delay: 12, dash: true, weapon: "sword", ult: "beam" },
+  { name: "KATHY", img: "playerImage", hp: 256, speed: 256, ammo: 256, weapon: "rocket", ult: "area",
+    ui: { spd: 3, hp: 3, dmg: 3 },
+    info: { es: { weapon: "Bazuca con explosion que dana a los enemigos cercanos.", special: "Area 3x3 con dano continuo." },
+            en: { weapon: "Bazooka whose blast hurts nearby enemies.", special: "3x3 area with continuous damage." } } },
+  { name: "KURT", img: "kurtImage", hp: 384, speed: 205, ammo: 922, delay: 4, dash: true, weapon: "gun", ult: "burst",
+    ui: { spd: 2, hp: 5, dmg: 5 },
+    info: { es: { weapon: "Ametralladora, 15 balas por segundo con dispersion. Mucha vida, pero lento.", special: "Area 5x2 con dano x3 instantaneo." },
+            en: { weapon: "Machine gun, 15 bullets per second with spread. Lots of HP, but slow.", special: "5x2 area with instant x3 damage." } } },
+  { name: "SKREEK", img: "skreekImage", hp: 320, speed: 294, ammo: 256, delay: 12, dash: true, weapon: "sword", ult: "beam",
+    ui: { spd: 4, hp: 4, dmg: 4 },
+    info: { es: { weapon: "Espada, 5 golpes por segundo, alcance de 2 tiles. Rapido y resistente.", special: "Proyectil que atraviesa y destruye todo." },
+            en: { weapon: "Sword, 5 hits per second, 2 tile reach. Fast and sturdy.", special: "Projectile that pierces and destroys everything." } } },
 ];
 const chars = [0, 1];
 const maxHp = (p) => ((CFG.playerHp * p.ch.hp + 128) >> 8) + lv("hp");
@@ -43,7 +55,7 @@ const UPGRADES = [
 ];
 const upgCost = (u) => u.base + u.step * lv(u.key);
 let shop = null, level = 1;
-let shopSource = "death"; // Puede ser "death"
+let shopSource = "death"; // "death" | "win"
 
 function totalCoins() {
   return players.reduce((n, p) => n + (p.active ? p.coins : 0), 0);
@@ -68,7 +80,7 @@ function rollOffers() {
   return shuffle([pick, ...rest]);
 }
 
- // Modificamos openShop para que no avance de nivel, sino que mantenga el nivel actual
+// Abre la tienda. source: "death" (reaparece en el mismo nivel) o "win" (pasa al siguiente).
 function openShop(source = "death") {
   shopSource = source; // Guardamos si se abrió por morir ("death") o por ganar ("win")
   shop = { sel: 0, offers: rollOffers() };
@@ -77,8 +89,7 @@ function openShop(source = "death") {
 
 function closeShopAndContinue() {
   shop = null;
-  //winDelay = 0;
-  
+
   if (shopSource === "win") {
     // Si veníamos de ganar el nivel (llegar al END), SÍ avanzamos al siguiente nivel
     nextLevel();
@@ -88,7 +99,6 @@ function closeShopAndContinue() {
   }
 }
 function nextLevel() {
-  // Esto ahora solo se usará cuando se llegue a la zona END
   shop = null;
   level++;
   const saved = players.map((p) => ({ coins: p.coins, crystals: p.crystals, active: p.active }));

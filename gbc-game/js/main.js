@@ -31,22 +31,19 @@ function update() {
     return;
   }
   
-  // 1. Declaramos primero las variables necesarias
   const live = players.filter(p => p.active && p.hp > 0);
   const end = levelLogic && levelLogic.end;
 
-  // 2. Comprobamos si se llega a la zona END aquí abajo
-  if (end && /*!winDelay &&*/ live.length && live.every((p) => {
+  // Llegada a la zona END: todos los jugadores vivos dentro.
+  if (end && live.length && live.every((p) => {
     const cx = (p.x >> 8) + 8, cy = (p.y >> 8) + 8;
     return cx >= end[0] && cx < end[0] + end[2] && cy >= end[1] && cy < end[1] + end[3];
-  })) { 
-   // winDelay = 90; 
-    sfx("open"); 
-    openShop("win"); 
+  })) {
+    sfx("open");
+    openShop("win");
   }
 
   if (!gameOver) stats.time++;
-  // ... resto del código de update ...
   if (gameOver) {
     const pr = input.pressed[0] | input.pressed[1];
     if (pr & (BTN.UP | BTN.DOWN)) goSel ^= 1;
@@ -87,7 +84,28 @@ function update() {
   updateCoins();
   for (const p of players) updatePlayer(p);
 
+  updateCamera(live);
 
+  updateBullets();
+
+  updateEnemies();
+  for (const e of enemies) {
+    if (e.hit > 0) e.hit--;
+    for (const p of live) {
+      if (!p.tp && p.inv === 0 && overlap(p.x >> 8, p.y >> 8, PBOX, e.x >> 8, e.y >> 8, e.box)) {
+        p.hp--;
+        sfx("hurt");
+        p.inv = invulnFrames();
+        p.hit = CFG.hurtFlash;
+      }
+    }
+  }
+
+  if (enemies.length === 0 && --waveTimer <= 0) spawnWave();
+  if (!players.some((p) => p.active && p.hp > 0)) openShop("death");
+}
+
+function updateCamera(live) {
   if (live.length) {
     let mx = 0, my = 0;
     for (const p of live) { mx += (p.x >> 8) + 8; my += (p.y >> 8) + 12; }
@@ -98,8 +116,10 @@ function update() {
     cam.x += dxc < 0 ? -((-dxc) >> 2) : dxc >> 2;
     cam.y += dyc < 0 ? -((-dyc) >> 2) : dyc >> 2;
   }
+}
 
-  // Proyectiles
+// Proyectiles: movimiento, impacto en enemigos, paredes y objetos.
+function updateBullets() {
   for (const b of bullets) {
     b.x += b.vx; b.y += b.vy;
     b.life -= Math.max(Math.abs(b.vx), Math.abs(b.vy));
@@ -164,71 +184,25 @@ function update() {
   }
   bullets = bullets.filter(b => !b.dead);
   enemies = enemies.filter(e => e.hp > 0);
-
-  updateEnemies();
-  for (const e of enemies) {
-    if (e.hit > 0) e.hit--;
-    for (const p of live) {
-      if (!p.tp && p.inv === 0 && overlap(p.x >> 8, p.y >> 8, PBOX, e.x >> 8, e.y >> 8, e.box)) {
-        p.hp--;
-        sfx("hurt");
-        p.inv = invulnFrames();
-        p.hit = CFG.hurtFlash;
-      }
-    }
-  }
-
-  if (enemies.length === 0 && --waveTimer <= 0) spawnWave();
-  if (!players.some(p => p.active && p.hp > 0)) {
-openShop("death"); // Viene de morir
 }
-
-}
-
-// Version "golpeada" de una imagen: la rampa de verdes se invierte (oscuro <-> claro), como una paleta alternativa.
 
 // ------------------------------------------------------------ Inicializacion
+// Hojas de sprites con version "golpeada" (flash al recibir dano). true = aclarar en vez de invertir la rampa de verdes.
+// Al anadir un personaje o enemigo nuevo, anade aqui su imagen (la clave es la de assets).
+const HIT_SPRITES = {
+  playerImage: false, kurtImage: true, skreekImage: true,
+  enemyImage: false, bigSlugImage: false, beeImage: true,
+};
+
 async function start() {
   assets = await DMGLoader.init();
+  allLevels = assets.levels;
   initText();
   initComposites();
   hitImages.tileset = makeHitImage(assets.tilesetImage);
-  hitImages.playerImage = makeHitImage(assets.playerImage);
-  hitImages.kurtImage = makeHitImage(assets.kurtImage, true);
-  hitImages.skreekImage = makeHitImage(assets.skreekImage, true);
-  hitImages.enemyImage = makeHitImage(assets.enemyImage);
-  hitImages.bigSlugImage = makeHitImage(assets.bigSlugImage);
-  hitImages.beeImage = makeHitImage(assets.beeImage, true);
-  MAP_W = assets.itemsMap.w;
-  MAP_H = assets.itemsMap.h;
-  itemsLayer = assets.itemsMap.data.slice();
-  itemsAttrs = assets.itemsMap.attrs.slice();
-  initialItemsLayer = itemsLayer.slice();
-  initialItemsAttrs = itemsAttrs.slice();
-  fondoLayer = assets.backgroundMap.data.slice();
-  fondoAttrs = assets.backgroundMap.attrs.slice();
-  // En lugar de baseLevel = ... y level1Level = ..., ponemos:
-  if (assets.levels && assets.levels.length) {
-    allLevels = assets.levels;
-  } else {
-    // Respaldo por si aún solo carga level1:
-    allLevels = [
-      {
-        w: assets.level1Fondo.w,
-        h: assets.level1Fondo.h,
-        fondo: assets.level1Fondo.data.slice(),
-        fondoAttrs: assets.level1Fondo.attrs.slice(),
-        items: assets.level1Items.data.slice(),
-        itemsAttrs: assets.level1Items.attrs.slice(),
-        logic: assets.level1Logic
-      }
-    ];
-  }
+  for (const [key, brighten] of Object.entries(HIT_SPRITES)) hitImages[key] = makeHitImage(assets[key], brighten);
   gbc.ctx.imageSmoothingEnabled = false;
-
-  for (let i = 0; i < MAP_W * MAP_H; i++) syncMapCell(i);
-
-  resetGame(); window.__t = { players: () => players, enemies: () => enemies, level: () => level, logic: () => levelLogic }; // TEMP = () => { paused = !paused; };
+  resetGame(); // carga el primer nivel (useLayout) y deja todo listo
 
   const STEP = 1000 / 59.73;
   let last = performance.now(), acc = 0;

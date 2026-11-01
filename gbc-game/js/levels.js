@@ -36,7 +36,6 @@ function resetGame(keepUpgrades) {
   if (!keepUpgrades) { upg = {}; level = 1; buildLayouts(); }
   pickLevel();
   shop = null;
-  //winDelay = 0;
   itemsLayer = initialItemsLayer.slice();
   barrierHp.clear();
   barrierHit.clear();

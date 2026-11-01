@@ -146,11 +146,6 @@ window.DMGLoader = (function () {
         throw new Error("No se encontró ningún nivel (ej: maps/Level1-1_Fondo.csv)");
       }
 
-      // Mantenemos compatibilidad con las propiedades antiguas usando el primer nivel cargado
-      const first = levels[0];
-      const backgroundMap = { w: first.w, h: first.h, data: first.fondo, attrs: first.fondoAttrs };
-      const itemsMap = { w: first.w, h: first.h, data: first.items, attrs: first.itemsAttrs };
-
       return {
         tilesetImage,
         playerImage,
@@ -162,11 +157,6 @@ window.DMGLoader = (function () {
         beeImage,
         bigSlugImage,
         teleportImage,
-        backgroundMap,
-        itemsMap,
-        level1Fondo: backgroundMap,
-        level1Items: itemsMap,
-        level1Logic: first.logic,
         fontImage,
         portraitsImage,
         shotSmallImage,

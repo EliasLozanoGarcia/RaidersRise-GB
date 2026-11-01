@@ -4,7 +4,7 @@
   <export target="../../gbc-game/maps/Level1-7.csv" format="csv"/>
  </editorsettings>
  <tileset firstgid="1" source="Urban.tsx"/>
- <layer id="1" name="Fondo" width="20" height="32" visible="0">
+ <layer id="1" name="Fondo" width="20" height="32">
   <data encoding="csv">
 34,40,101,39,40,40,101,2147483686,55,55,55,55,38,40,101,40,39,40,40,2147483682,
 33,55,55,55,55,55,55,55,53,50,50,2147483701,55,55,55,55,55,55,55,33,

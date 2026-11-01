@@ -61,4 +61,37 @@ menus.js
 Las pantallas fuera de la partida: splash, selección de personaje (con unión del jugador 2), galería de Raiders, ficha de personaje y ajustes. Incluye los textos en español e inglés.
 
 main.js
-Contiene update(), que decide qué actualizar en cada frame (menús, tienda, game over o partida), y la función start(), que carga los recursos, inicializa todo y arranca el bucle principal a ~59,7 FPS.
+Contiene update() (con updateCamera y updateBullets extraídos), HIT_SPRITES (hojas con versión "golpeada"), que decide qué actualizar en cada frame (menús, tienda, game over o partida), y la función start(), que carga los recursos, inicializa todo y arranca el bucle principal a ~59,7 FPS.
+
+gbc.js, input.js
+Hardware simulado: mini-PPU de Game Boy Color e Input (teclado y gamepad -> máscara de botones BTN por jugador). No se tocan al añadir contenido.
+
+loader_dmg.js
+Carga imágenes, splash y todos los niveles maps/Level1-N_{Fondo,Items}.csv (+ _Logic.json opcional) hasta que falta uno. Devuelve `assets`.
+
+------------------------------------------------------------
+CÓMO AÑADIR CONTENIDO
+
+Nivel nuevo
+  Crea maps/Level1-N_Fondo.csv y _Items.csv (mismo tamaño) y, opcionalmente, _Logic.json con start, end, spawners y customSpawners.
+  Sin tocar código: el loader los detecta si N es correlativo.
+
+Enemigo nuevo
+  1. Carga su imagen en loader_dmg.js (añádela a la lista y al return).
+  2. Añade una entrada en CFG.enemyTypes (config.js): weight, hp, speed, size, flying, sprite, ai, coin, sheet.
+     ai "walk" o "fly"; sheet "dir" o "flap". Un comportamiento nuevo = nuevo valor de ai en updateEnemies (entities.js).
+  3. Añade su imagen a HIT_SPRITES (main.js).
+
+Personaje nuevo
+  1. Carga su hoja de sprites en loader_dmg.js y añade su imagen a HIT_SPRITES (main.js).
+  2. Añade una entrada en CHARS (upgrades.js) con sus stats, ui e info (es/en). Los menús leen todo de ahí.
+  3. Añade su retrato (30x30) a assets/portraits.png, en el mismo orden que CHARS.
+  4. Si usa un arma o especial nuevo: weapon en updatePlayer y ult en updateSpecial (entities.js).
+
+Tileset nuevo
+  Mantén los ids de los tiles de objetos (barreras 19-24, pinchos 14-16, cajas 27-31, puertas 64-72, muros 74-79, botones 82-83...)
+  o actualiza las constantes en interactives.js y las tablas COL_* en tiles.js.
+  Ojo: los ids 74-92 y 106-118 también los usa el sistema de texto (render.js, TEXT_IDS) en un buffer aparte.
+
+Tipo de objeto interactivo nuevo
+  Detección en initInteractives y comportamiento en updateInteractives (interactives.js).

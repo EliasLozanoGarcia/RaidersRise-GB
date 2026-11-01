@@ -279,7 +279,7 @@ function render() {
   for (let ty = firstTileY; ty <= lastTileY; ty++) {
     for (let tx = firstTileX; tx <= lastTileX; tx++) {
       const idx = ty * MAP_W + tx;
-      const hasOffX = typeof tileOffX !== "undefined" && tileOffX.has(idx);
+      const hasOffX = tileOffX.has(idx);
       const fs = compSlot.get(idx);
       if (fs !== undefined && !flashed(idx) && !tileOffY.has(idx) && !hasOffX) {
         if (!coinWaiting(idx) || fondoClear(idx)) ctx.drawImage(compCv, fs * 8, 0, 8, 8, tx * 8 - cam.x, ty * 8 - cam.y, 8, 8);
@@ -294,7 +294,7 @@ function render() {
     for (let tx = firstTileX; tx <= lastTileX; tx++) {
       const idx = ty * MAP_W + tx;
       if (itemsLayer[idx] < 0 || coinWaiting(idx)) continue;
-      const hasOffX = typeof tileOffX !== "undefined" && tileOffX.has(idx);
+      const hasOffX = tileOffX.has(idx);
       const slot = compSlot.get(idx);
       if (slot !== undefined && !flashed(idx) && !tileOffY.has(idx) && !hasOffX) continue;
       drawMapTile(ctx, tx, ty, itemsLayer[idx], itemsAttrs[idx], flashed(idx), tileOffY.get(idx) || 0, hasOffX ? tileOffX.get(idx) : 0);
@@ -409,8 +409,8 @@ function render() {
     const px = (e.x >> 8) - cam.x, py = (e.y >> 8) - cam.y;
     const frameIndex = e.moving ? ((e.animT / CFG.enemyAnimFrames) | 0) & 1 : 0;
     const img = assets[e.sprite];
-    const src = e.type === "bee" ? img && [(((frame >> 1) + (e.id || 0)) & 1) * 8, 0] : [e.dir * e.size, frameIndex * e.size];
-    const sw = e.type === "bee" ? 8 : e.size;
+    const src = e.sheet === "flap" ? img && [(((frame >> 1) + (e.id || 0)) & 1) * 8, 0] : [e.dir * e.size, frameIndex * e.size];
+    const sw = e.sheet === "flap" ? 8 : e.size;
     ctx.drawImage(e.hit > 0 ? hitImages[e.sprite] || img : img, src[0], src[1], sw, sw, px, py, e.size, e.size);
   }
   drawHud(ctx);

@@ -3,7 +3,7 @@
 
 // ------------------------------------------------------------ Tablas de Colisiones
 // Nuevas colisiones de medio tile (T: Arriba, R: Derecha, D: Abajo, L: Izquierda)
-const COL_TOTAL_T = new Set([20, 22, 24, 36]); 
+const COL_TOTAL_T = new Set([20, 22, 24, 36]);
 const COL_TOTAL_R = new Set([]); // Añade aquí los IDs de mitad derecha total si tienes
 const COL_TOTAL_D = new Set([64, 65, 76, 77]);
 const COL_TOTAL_L = new Set([70, 71]);
@@ -24,9 +24,6 @@ const COL_MEDIA = new Set([
   8, 9, 10, 11, 12, 13, 19, 21, 23, 30, 31, 42, 43, 44, 45, 73, 104, 105, 126, 127,
   110, 111 // muro bajable, ultima fase: bloquea el paso pero no las balas
 ]);
-
-// Tiles de pinchos que hacen daño
-const SPIKE_TILES = new Set([10, 11, 12, 13]); // <-- Pon aquí los IDs exactos de tus pinchos
 
 let itemsLayer = [];
 let fondoLayer = [];
@@ -113,7 +110,7 @@ function resetComposites() {
 function drawTileInto(c, id, attr, ox, oy) {
   c.save();
   c.translate(ox + 4, oy + 4);
- if (attr & 0x20) c.scale(-1, 1);
+  if (attr & 0x20) c.scale(-1, 1);
   if (attr & 0x40) c.scale(1, -1);
   c.drawImage(assets.tilesetImage, (id % 32) * 8, ((id / 32) | 0) * 8, 8, 8, -4, -4, 8, 8);
   c.restore();
@@ -149,7 +146,6 @@ function releaseComposite(idx) {
 
 // Cada moneda cae en su celda o, al azar, un tile a izquierda/derecha y/o uno mas abajo (si esta libre),
 // y se voltea al azar (espejo) para que no queden todas iguales.
-// tiles.js
 function pickCoinCell(idx) {
   const tx0 = idx % MAP_W, ty0 = (idx / MAP_W) | 0;
   // Solo permite desplazamientos a los lados (dx: -1, 0, 1) y hacia abajo (dy: 0, 1), nunca arriba (dy < 0)
