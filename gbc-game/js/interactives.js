@@ -1,41 +1,46 @@
 "use strict";
 /* Objetos interactivos: pinchos, cofres, cristales, puertas, cajas de mana. */
 
-// ------------------------------------------------------------ Objetos Interactivos
+// ------------------------------------------------------------ Declaraciones Globales
 let spikes = [];
 let manaBoxes = [];
-const BARRIER_FIRST = 19, BARRIER_LAST = 24; // ids de las barreras destruibles (3 estados x 2 tiles)
-const barrierHp = new Map();
-const barrierHit = new Map();
-// Desplazamiento vertical en pixeles de celdas concretas del mapa (idx -> px; negativo = hacia arriba).
-// Lo usa render() al dibujar; sirve para animar las puertas sin cambiar de tile.
+const BARRIER_FIRST = 19, BARRIER_LAST = 24; // ids de las barreras destruibles
+
+// Variables globales blindadas para evitar ReferenceErrors en otros scripts
+window.barrierHp = window.barrierHp || new Map();
+window.barrierHit = window.barrierHit || new Map();
+const barrierHp = window.barrierHp;
+const barrierHit = window.barrierHit;
+
 const tileOffY = new Map();
-function setTileOff(idx, dy) { if (dy) tileOffY.set(idx, dy); else tileOffY.delete(idx); }
-// Puerta: pixeles de desplazamiento al empujarla. Cerrada: hacia arriba (extremo libre mas que el centro).
-// Abierta (vertical, al cerrarla): hacia abajo, tile superior mas que el central.
+const tileOffX = new Map();
+function setTileOff(idx, dy, dx = 0) {
+  if (dy) tileOffY.set(idx, dy); else tileOffY.delete(idx);
+  if (dx) tileOffX.set(idx, dx); else tileOffX.delete(idx);
+}
+
 const DOOR_LIFT_CENTER = 1, DOOR_LIFT_END = 2;
-const DOOR_OPEN_IDS = [72, 71, 70]; // de arriba a abajo; el de abajo (70) ocupa la celda del antiguo 64 izquierdo
+const DOOR_OPEN_IDS = [72, 71, 70];
 let coinChests = [];
 let crystals = [];
 let doors = [];
-let buttons = [];    // botones de suelo 2x2 (82 / 114, con espejo): mientras se pisan, bajan los muros
-let lowerWalls = []; // muros bajables: 2 filas de alto, anchura libre, extremo + centro repetible + extremo espejado
+let buttons = [];
+let lowerWalls = [];
 
-// Muros bajables: grupos 2x2 del tileset [extremo, centro] (el extremo derecho es el mismo con espejo horizontal).
-// Grupo 0 = muro construido en el mapa; 1 y 2 = fases de la animacion; despues se borran.
+// Constantes de Muros y Botones
 const WALL_STAGES = [
   { top: [74, 75], bottom: [106, 107] },
   { top: [76, 77], bottom: [108, 109] },
   { top: [78, 79], bottom: [110, 111] },
 ];
-const WALL_STAGE_FRAMES = 12; // 0,2 s por fase (~60 fps)
+const WALL_STAGE_FRAMES = 12;
 const BTN_TILES = { top: 82, bottom: 114, topOff: 83, bottomOff: 115 };
 
 function applyWallStage(w, g) {
   for (const c of w.cells) {
-    if (g >= WALL_STAGES.length) { setItemTile(c.idx, -1); continue; } // fin: se ve el fondo
+    if (g >= WALL_STAGES.length) { setItemTile(c.idx, -1); continue; }
     const S = WALL_STAGES[g];
-    setItemTile(c.idx, (c.row ? S.bottom : S.top)[c.kind], itemsAttrs[c.idx]); // conserva el espejo
+    setItemTile(c.idx, (c.row ? S.bottom : S.top)[c.kind], itemsAttrs[c.idx]);
   }
 }
 
@@ -43,13 +48,18 @@ function applyWallStage(w, g) {
 function cullItems() {
   const groups = { crystal: [], chest: [], mana: [] };
   const at = (i) => itemsLayer[i];
+  const usedChest = new Set();
+  
   for (let ty = 0; ty < MAP_H - 1; ty++) {
     for (let tx = 0; tx < MAP_W - 1; tx++) {
       const i = ty * MAP_W + tx;
       const t = at(i);
+      
       if (t === 27 && at(i + 1) === 28 && at(i + MAP_W) === 59 && at(i + MAP_W + 1) === 60) {
         groups.mana.push([i, i + 1, i + MAP_W, i + MAP_W + 1]);
-      } else if (t === 29 && at(i + 1) === 29 && at(i + MAP_W) === 61 && at(i + MAP_W + 1) === 61 && (tx === 0 || at(i - 1) !== 29)) {
+      } else if (!usedChest.has(i) && t === 29 && at(i + 1) === 29 && at(i + MAP_W) === 61 && at(i + MAP_W + 1) === 61) {
+        usedChest.add(i);
+        usedChest.add(i + 1);
         groups.chest.push([i, i + 1, i + MAP_W, i + MAP_W + 1]);
       } else if (t === 30 && ty + 2 < MAP_H && at(i + 1) === 31 && at(i + MAP_W) === 62 && at(i + MAP_W + 1) === 63 &&
                  at(i + MAP_W * 2) === 94 && at(i + MAP_W * 2 + 1) === 95) {
@@ -77,31 +87,35 @@ function initInteractives() {
   manaBoxes = [];
   coinChests = [];
   crystals = [];
+  tileOffY.clear();
+  tileOffX.clear();
 
   for (let ty = 0; ty < MAP_H; ty++) {
     for (let tx = 0; tx < MAP_W; tx++) {
       const idx = ty * MAP_W + tx;
       const t = itemsLayer[idx];
+      const ft = fondoLayer[idx];
 
-      // 14: Pincho
-      if (t === 14) {
-        spikes.push({ tx, ty, t: 0, state: 0 });
+      // Pinchos (14, 15, 16) en cualquier capa
+      if (t === 14 || t === 15 || t === 16 || ft === 14 || ft === 15 || ft === 16) {
+        const st = (t === 16 || ft === 16) ? 1 : (t === 15 || ft === 15) ? 2 : 0;
+        spikes.push({ tx, ty, t: 0, state: st });
       }
-      // 27: Esquina superior izquierda de caja de mana (27, 28, 59, 60)
+      // Caja de mana
       else if (t === 27 && tx + 1 < MAP_W && ty + 1 < MAP_H) {
         manaBoxes.push({ tx, ty, hp: 3, alive: true });
       }
-      // Cofre de monedas: dos tiles superiores 29 y dos inferiores 61.
+      // Cofre de monedas (permite adyacentes validando que no sea el lado derecho de otro)
       else if (
         t === 29 && tx + 1 < MAP_W && ty + 1 < MAP_H &&
         itemsLayer[idx + 1] === 29 &&
         itemsLayer[idx + MAP_W] === 61 &&
         itemsLayer[idx + MAP_W + 1] === 61 &&
-        (tx === 0 || itemsLayer[idx - 1] !== 29)
+        !coinChests.some((c) => c.ty === ty && c.tx + 1 === tx)
       ) {
         coinChests.push({ tx, ty, pushTime: 0, opened: false });
       }
-      // Cristal: 30,31 / 62,63 / 94,95.
+      // Cristal
       else if (
         t === 30 && tx + 1 < MAP_W && ty + 2 < MAP_H &&
         itemsLayer[idx + 1] === 31 &&
@@ -110,7 +124,7 @@ function initInteractives() {
       ) {
         crystals.push({ tx, ty, pushTime: 0, mined: false });
       }
-      // Puerta vertical abierta: de arriba hacia abajo, 70, 69, 68.
+      // Puerta vertical
       else if (
         (t === 70 || t === 72) && ty + 3 < MAP_H &&
         (itemsLayer[idx + MAP_W] === 69 || itemsLayer[idx + MAP_W] === 71) &&
@@ -131,22 +145,12 @@ function initInteractives() {
           }
         }
         doors.push({
-          tx,
-          ty: ty + 2,
-          shifted: true,
-          width,
-          pushTime: 0,
-          open: true,
-          openTopY: ty,
-          openTiles,
-          openAttrs: openTiles.map((cell) => itemsAttrs[cell]),
-          openIds: openTiles.map((cell) => itemsLayer[cell]),
-          cells,
-          tiles,
-          attrs,
+          tx, ty: ty + 2, shifted: true, width, pushTime: 0, open: true,
+          openTopY: ty, openTiles, openAttrs: openTiles.map((cell) => itemsAttrs[cell]),
+          openIds: openTiles.map((cell) => itemsLayer[cell]), cells, tiles, attrs,
         });
       }
-      // Boton de suelo 2x2: 82 / 82 espejado arriba, 114 / 114 espejado abajo.
+      // Boton de suelo
       else if (
         t === BTN_TILES.top && !(itemsAttrs[idx] & 0x20) && tx + 1 < MAP_W && ty + 1 < MAP_H &&
         itemsLayer[idx + 1] === BTN_TILES.top && (itemsAttrs[idx + 1] & 0x20) &&
@@ -154,11 +158,8 @@ function initInteractives() {
       ) {
         buttons.push({ tx, ty, done: false, look: false });
       }
-      // Muro bajable: extremo izq. (74/106) + centro repetible (75/107) + extremo der. espejado (74/106).
-      // Tambien se acepta que el mapa lo traiga ya en la fase 1 (76,77 / 108,109).
-      else if (
-        (t === WALL_STAGES[0].top[0] || t === WALL_STAGES[1].top[0]) && !(itemsAttrs[idx] & 0x20) && ty + 1 < MAP_H
-      ) {
+      // Muro bajable
+      else if ((t === WALL_STAGES[0].top[0] || t === WALL_STAGES[1].top[0]) && !(itemsAttrs[idx] & 0x20) && ty + 1 < MAP_H) {
         const g = t === WALL_STAGES[0].top[0] ? 0 : 1, S = WALL_STAGES[g];
         if (itemsLayer[idx + MAP_W] === S.bottom[0]) {
           for (let col = 1; tx + col < MAP_W; col++) {
@@ -175,45 +176,23 @@ function initInteractives() {
           }
         }
       }
-      // Puerta horizontal de dos filas; admite un centro de longitud variable.
-      else if (
-        t === 64 && ty + 1 < MAP_H &&
-        itemsLayer[idx + MAP_W] === 96 &&
-        !(itemsAttrs[idx] & 0x20) &&
-        !(itemsAttrs[idx + MAP_W] & 0x20)
-      ) {
+      // Puerta horizontal
+      else if (t === 64 && ty + 1 < MAP_H && itemsLayer[idx + MAP_W] === 96 && !(itemsAttrs[idx] & 0x20) && !(itemsAttrs[idx + MAP_W] & 0x20)) {
         let width = 1;
         while (tx + width < MAP_W) {
-          const top = idx + width;
-          const bottom = top + MAP_W;
-          if (
-            itemsLayer[top] === 64 &&
-            itemsLayer[bottom] === 96 &&
-            (itemsAttrs[top] & 0x20) &&
-            (itemsAttrs[bottom] & 0x20)
-          ) {
+          const top = idx + width, bottom = top + MAP_W;
+          if (itemsLayer[top] === 64 && itemsLayer[bottom] === 96 && (itemsAttrs[top] & 0x20) && (itemsAttrs[bottom] & 0x20)) {
             if (width >= 2) {
               const cells = [];
               for (let row = 0; row < 2; row++) {
                 for (let col = 0; col <= width; col++) cells.push(idx + row * MAP_W + col);
               }
               doors.push({
-                tx,
-                ty,
-                width: width + 1,
-                pushTime: 0,
-                open: false,
-                tiles: cells.map((cell) => itemsLayer[cell]),
-                attrs: cells.map((cell) => itemsAttrs[cell]),
-                cells,
-                openTopY: ty - 2,
-                openTiles: [
-                  (ty - 2) * MAP_W + tx,
-                  (ty - 1) * MAP_W + tx,
-                  ty * MAP_W + tx,
-                ],
-                openAttrs: [0, 0, 0],
-                openIds: DOOR_OPEN_IDS,
+                tx, ty, width: width + 1, pushTime: 0, open: false,
+                tiles: cells.map((cell) => itemsLayer[cell]), attrs: cells.map((cell) => itemsAttrs[cell]),
+                cells, openTopY: ty - 2,
+                openTiles: [(ty - 2) * MAP_W + tx, (ty - 1) * MAP_W + tx, ty * MAP_W + tx],
+                openAttrs: [0, 0, 0], openIds: DOOR_OPEN_IDS,
               });
             }
             break;
@@ -268,12 +247,10 @@ function openCoinChest(chest, player) {
 
   let extraCoins = 0;
   for (let radius = 1; radius <= 2 && extraCoins < 8; radius++) {
-    for (let oy = -radius; oy <= 1 + radius && extraCoins < 8; oy++) {
+    // oy empieza en 0 para que nunca salgan arriba del cofre
+    for (let oy = 0; oy <= 1 + radius && extraCoins < 8; oy++) {
       for (let ox = -radius; ox <= 1 + radius && extraCoins < 8; ox++) {
-        if (Math.max(
-          Math.abs(2 * ox - 1),
-          Math.abs(2 * oy - 1)
-        ) < 2 * radius) continue;
+        if (ox >= 0 && ox <= 1 && oy >= 0 && oy <= 1) continue;
 
         const tx = chest.tx + ox;
         const ty = chest.ty + oy;
@@ -295,20 +272,19 @@ function updateInteractives() {
   for (const b of manaBoxes) if (b.hit > 0) b.hit--;
   for (const [k, v] of barrierHit) { if (v <= 1) barrierHit.delete(k); else barrierHit.set(k, v - 1); }
 
-  // A) PINCHOS (14 -> 3s -> 16 activo con daño -> 1s -> 15 bajando -> 0.3s -> 14)
+  // A) PINCHOS
   for (const s of spikes) {
     s.t++;
     const idx = s.ty * MAP_W + s.tx;
-    if (s.state === 0 && s.t >= 180) { // 3 segundos
+    if (s.state === 0 && s.t >= 180) {
       s.state = 1;
       s.t = 0;
-      setItemTile(idx, 16);
       setItemTile(idx, 16);
     } else if (s.state === 1) {
       const sBox = { x: s.tx * 8, y: s.ty * 8, w: 8, h: 8 };
       for (const p of players) {
         if (p.active && p.hp > 0 && !p.tp && p.inv === 0 &&
-            overlap(p.x >> 8, p.y >> 8, PBOX, sBox.x, sBox.y, sBox)) {
+            overlap(p.x >> 8, p.y >> 8, PBOX, 0, 0, sBox)) {
           p.hp--;
           sfx("hurt");
           p.inv = invulnFrames();
@@ -316,25 +292,23 @@ function updateInteractives() {
         }
       }
       for (const e of enemies) {
-        if (e.hp > 0 && overlap(e.x >> 8, e.y >> 8, e.box, sBox.x, sBox.y, sBox)) {
+        if (e.hp > 0 && overlap(e.x >> 8, e.y >> 8, e.box, 0, 0, sBox)) {
           damageEnemy(e, 1);
         }
       }
-      if (s.t >= 60) { // 1 segundo
+      if (s.t >= 60) {
         s.state = 2;
         s.t = 0;
         setItemTile(idx, 15);
-        setItemTile(idx, 15);
       }
-    } else if (s.state === 2 && s.t >= 18) { // 0.3 segundos
+    } else if (s.state === 2 && s.t >= 18) {
       s.state = 0;
       s.t = 0;
-      setItemTile(idx, 14);
       setItemTile(idx, 14);
     }
   }
 
-  // B) COFRE DE MONEDAS EMPUJABLE (29, 61)
+  // B) COFRE DE MONEDAS EMPUJABLE
   for (const c of coinChests) {
     if (c.opened) continue;
     const cBox = { x: c.tx * 8, y: c.ty * 8, w: 16, h: 16 };
@@ -346,9 +320,7 @@ function updateInteractives() {
         topCells.forEach((i, k) => setItemTile(i, ALERT_CHEST, c.saved[k][1]));
       }
       c.pushTime++;
-      if (c.pushTime >= 90) { // 1.5s empujando para abrir
-        openCoinChest(c, pusher);
-      }
+      if (c.pushTime >= 90) openCoinChest(c, pusher);
     } else {
       if (c.saved) {
         topCells.forEach((i, k) => setItemTile(i, c.saved[k][0], c.saved[k][1]));
@@ -358,7 +330,7 @@ function updateInteractives() {
     }
   }
 
-  // B2) CRISTALES (30,31,62,63,94,95): 3 veces mas lento que el cofre
+  // B2) CRISTALES
   for (const c of crystals) {
     if (c.mined) continue;
     const box = { x: c.tx * 8, y: c.ty * 8, w: 16, h: 24 };
@@ -373,7 +345,6 @@ function updateInteractives() {
       if (c.pushTime >= 270) {
         c.mined = true;
         pusher.crystals++;
-       // winDelay = 90;
         sfx("open");
         for (let oy = 0; oy < 3; oy++) {
           for (let ox = 0; ox < 2; ox++) setItemTile((c.ty + oy) * MAP_W + c.tx + ox, -1);
@@ -390,22 +361,32 @@ function updateInteractives() {
 
   updateButtonsAndWalls();
 
-  // C) PUERTAS EMPUJABLES: al abrirse, la hoja gira y queda junto al marco.
+  // C) PUERTAS EMPUJABLES
   for (const d of doors) {
     if (d.open) {
       const verticalBox = { x: d.tx * 8, y: d.openTopY * 8, w: 8, h: 24 };
-      const pushing = players.some((p) => playerPushing(p, verticalBox));
+      const pusher = players.find((p) => playerPushing(p, verticalBox));
+      const pushing = !!pusher;
       if (!pushing) { d.locked = false; d.closeTime = 0; }
       const active = pushing && !d.locked;
+      if (active && d.cells) {
+        d.closeTime = (d.closeTime || 0) + 1;
+        // Mueve al personaje 1 px al empujar
+        if (d.closeTime === 24 && pusher) {
+          const dir = DIRS[pusher.pushFacing];
+          pusher.x += dir[0] * 256;
+          pusher.y += dir[1] * 256;
+        }
+      }
       const animating = active && (d.closeTime || 0) >= 24;
       const openDoorTiles = d.openIds || [70, 69, 68];
       d.openTiles.forEach((cell, i) => {
         setItemTile(cell, openDoorTiles[i], d.openAttrs[i]);
-        // al empujar para cerrar: tile superior baja 2 px, el central 1 px
-        setTileOff(cell, animating ? (i === 0 ? DOOR_LIFT_END : i === 1 ? DOOR_LIFT_CENTER : 0) : 0);
+        // Aplicar offset horizontal (dx) a la derecha
+        const dx = animating ? (i === 0 ? DOOR_LIFT_END : i === 1 ? DOOR_LIFT_CENTER : 0) : 0;
+        setTileOff(cell, 0, dx);
       });
       if (active && d.cells) {
-        d.closeTime = (d.closeTime || 0) + 1;
         const blocked = players.some((p) => p.active && p.hp > 0 &&
           overlap(p.x >> 8, p.y >> 8, PBOX, d.tx * 8, d.ty * 8, { x: 0, y: 0, w: d.width * 8, h: 16 }));
         if (d.closeTime >= 90 && !blocked) {
@@ -413,46 +394,48 @@ function updateInteractives() {
           d.locked = true;
           d.pushTime = 0;
           d.closeTime = 0;
-          d.openTiles.forEach((cell) => { setItemTile(cell, -1); setTileOff(cell, 0); });
+          d.openTiles.forEach((cell) => { setItemTile(cell, -1); setTileOff(cell, 0, 0); });
           d.skip = d.cells.map((cell) => d.shifted && getCellCollision(cell % MAP_W, (cell / MAP_W) | 0) !== 0);
           d.cells.forEach((cell, i) => { if (!d.skip[i]) setItemTile(cell, d.tiles[i], d.attrs[i]); });
         }
       }
       continue;
     }
+    
     const hBox = { x: d.tx * 8, y: d.ty * 8, w: d.width * 8, h: 16 };
-    const pushingH = players.some((p) => playerPushing(p, hBox));
+    const pusherH = players.find((p) => playerPushing(p, hBox));
+    const pushingH = !!pusherH;
     if (!pushingH) d.locked = false;
+    
     if (pushingH && !d.locked) {
       d.pushTime++;
-      // Tras 24 frames empujando, la hoja se levanta: el tile del extremo libre (derecha) sube 2 px y los
-      // del centro 1 px (las dos filas de cada columna). La columna izquierda (bisagra) no se mueve.
+      if (d.pushTime === 24 && pusherH) {
+        const dir = DIRS[pusherH.pushFacing];
+        pusherH.x += dir[0] * 256;
+        pusherH.y += dir[1] * 256;
+      }
       if (d.pushTime >= 24) for (let col = 1; col < d.width; col++) {
         const top = d.ty * MAP_W + d.tx + col;
         const bottom = top + MAP_W;
         const dy = -(col === d.width - 1 ? DOOR_LIFT_END : DOOR_LIFT_CENTER);
-        if (!(d.skip && d.skip[col])) setTileOff(top, dy);
-        if (!(d.skip && d.skip[d.width + col])) setTileOff(bottom, dy);
+        if (!(d.skip && d.skip[col])) setTileOff(top, dy, 0);
+        if (!(d.skip && d.skip[d.width + col])) setTileOff(bottom, dy, 0);
       }
 
       if (d.pushTime >= 90) {
         d.open = true;
         d.locked = true;
-        d.cells.forEach((cell, i) => { setTileOff(cell, 0); if (!(d.skip && d.skip[i])) setItemTile(cell, -1); });
+        d.cells.forEach((cell, i) => { setTileOff(cell, 0, 0); if (!(d.skip && d.skip[i])) setItemTile(cell, -1); });
         const openDoorTiles = d.openIds || [70, 69, 68];
         d.openTiles.forEach((cell, i) => setItemTile(cell, openDoorTiles[i], d.openAttrs[i]));
       }
     } else if (d.pushTime > 0) {
       d.pushTime = 0;
-      d.cells.forEach((cell, i) => { setTileOff(cell, 0); if (!(d.skip && d.skip[i])) setItemTile(cell, d.tiles[i], d.attrs[i]); });
+      d.cells.forEach((cell, i) => { setTileOff(cell, 0, 0); if (!(d.skip && d.skip[i])) setItemTile(cell, d.tiles[i], d.attrs[i]); });
     }
   }
 }
 
-// D) BOTONES y E) MUROS BAJABLES (se llama desde updateInteractives)
-// La secuencia solo avanza mientras algun jugador esta sobre un boton. Si se sale, el muro se queda en la fase
-// en que estaba (y el boton vuelve a verse sin pulsar) hasta que alguien vuelva a pisarlo. Al terminar, los botones
-// quedan desactivados (83 / 115).
 function setButtonLook(b, pressed) {
   if (b.look === pressed) return;
   b.look = pressed;
@@ -477,7 +460,7 @@ function updateButtonsAndWalls() {
     if (w.timer > 0) { w.timer--; continue; }
     if (!w.started) { w.started = true; sfx("open"); }
     w.shown++;
-    applyWallStage(w, w.shown); // al pasar de la ultima fase (3) borra todos los tiles
+    applyWallStage(w, w.shown);
     w.timer = WALL_STAGE_FRAMES;
   }
   if (lowerWalls.every((w) => w.shown >= WALL_STAGES.length)) {
@@ -485,8 +468,6 @@ function updateButtonsAndWalls() {
   }
 }
 
-// Celda donde cae la lata de una caja de mana (2x2 en tx,ty): primero las 4 celdas de la caja (esquina sup. izq. primero),
-// y si ninguna es transitable, la libre mas cercana en anillos de hasta 4 tiles. Libre = sin item y sin colision.
 function findDropCell(tx, ty) {
   const free = (x, y) => x >= 0 && y >= 0 && x < MAP_W && y < MAP_H &&
     itemsLayer[y * MAP_W + x] === -1 && getCellCollision(x, y) === 0;
@@ -495,18 +476,16 @@ function findDropCell(tx, ty) {
     let best = -1, bestD = Infinity;
     for (let y = ty - r; y <= ty + 1 + r; y++) {
       for (let x = tx - r; x <= tx + 1 + r; x++) {
-        if (Math.max(tx - x, x - (tx + 1), ty - y, y - (ty + 1)) !== r) continue; // solo el anillo r
+        if (Math.max(tx - x, x - (tx + 1), ty - y, y - (ty + 1)) !== r) continue;
         const d = (x - tx - 0.5) ** 2 + (y - ty - 0.5) ** 2;
         if (d < bestD && free(x, y)) { best = y * MAP_W + x; bestD = d; }
       }
     }
     if (best >= 0) return best;
   }
-  return ty * MAP_W + tx; // sin hueco cerca: se queda en la esquina de la caja
+  return ty * MAP_W + tx;
 }
 
-// Impacto de bala contra objetos destruibles (barreras, cajas de mana), generoso: se prueba en el suelo (gy) y en la
-// posicion visual (by), y con +-pad px de margen lateral. Devuelve true al primer impacto (aplica el dano una vez).
 function bulletHitsItems(bx, by, gy, pad) {
   for (const y of [gy, by]) {
     if (checkBulletHitItems(bx, y)) return true;
@@ -521,15 +500,12 @@ function checkBulletHitItems(bx, by) {
   const idx = ty * MAP_W + tx;
   const t = itemsLayer[idx];
 
-  // Barreras destruibles: parejas VERTICALES (arriba impar / abajo par) que se rompen como un solo bloque,
-  // con 3 estados de dano:  19/20 (entera) -> 21/22 (danada) -> 23/24 (muy danada) -> desaparece.
-  // CFG.barrierHp = impactos necesarios para pasar de un estado al siguiente.
   if (t >= BARRIER_FIRST && t <= BARRIER_LAST) {
     const isTop = (t & 1) === 1;
-    const partner = isTop ? idx + MAP_W : idx - MAP_W;               // celda de debajo / de encima
-    const hasPartner = itemsLayer[partner] === (isTop ? t + 1 : t - 1); // misma pareja y mismo estado
+    const partner = isTop ? idx + MAP_W : idx - MAP_W;
+    const hasPartner = itemsLayer[partner] === (isTop ? t + 1 : t - 1);
     const top = isTop ? idx : (hasPartner ? partner : -1);
-    const key = top >= 0 ? top : idx;                                // la hp se guarda en la celda de arriba
+    const key = top >= 0 ? top : idx;
     const left = (barrierHp.get(key) ?? CFG.barrierHp) - 1;
     const cells = hasPartner ? [idx, partner] : [idx];
     if (left > 0) {
@@ -540,12 +516,9 @@ function checkBulletHitItems(bx, by) {
       let destroyed = false;
       for (const c of cells) {
         const id = itemsLayer[c];
-        if (id + 2 > BARRIER_LAST) { barrierHit.delete(c); setItemTile(c, -1); destroyed = true; } // ultimo estado: se destruye
-        else { setItemTile(c, id + 2, itemsAttrs[c]); barrierHit.set(c, CFG.hurtFlash); }         // siguiente estado
+        if (id + 2 > BARRIER_LAST) { barrierHit.delete(c); setItemTile(c, -1); destroyed = true; }
+        else { setItemTile(c, id + 2, itemsAttrs[c]); barrierHit.set(c, CFG.hurtFlash); }
       }
-      // Si encima habia otra barrera (parte alta) cuya mitad de abajo estaba tapada por esta, la celda de arriba
-      // del bloque destruido (pareja, o un 19 suelto) pasa a ser esa mitad de abajo (par), con el mismo
-      // nivel de rotura que la de arriba. Si debajo de un 19 solo habia pared, no hay nada que revelar.
       const freed = hasPartner ? top : (isTop ? idx : -1);
       if (destroyed && freed >= 0) {
         const above = freed - MAP_W, aboveId = itemsLayer[above];
@@ -557,7 +530,6 @@ function checkBulletHitItems(bx, by) {
     return true;
   }
 
-  // Caja de mana (27, 28, 59, 60)
   for (const b of manaBoxes) {
     if (!b.alive) continue;
     if (tx >= b.tx && tx <= b.tx + 1 && ty >= b.ty && ty <= b.ty + 1) {
@@ -571,11 +543,10 @@ function checkBulletHitItems(bx, by) {
             setItemTile(i, -1);
           }
         }
-        setItemTile(findDropCell(b.tx, b.ty), 26); // la lata cae en un tile sin colision
+        setItemTile(findDropCell(b.tx, b.ty), 26);
       }
       return true;
     }
   }
   return false;
 }
-

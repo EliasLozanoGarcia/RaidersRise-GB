@@ -2,17 +2,31 @@
 /* Capas del mapa, tiles compuestos, monedas y colisiones por tile. */
 
 // ------------------------------------------------------------ Tablas de Colisiones
+// Nuevas colisiones de medio tile (T: Arriba, R: Derecha, D: Abajo, L: Izquierda)
+const COL_TOTAL_T = new Set([20, 22, 24, 36]); 
+const COL_TOTAL_R = new Set([]); // Añade aquí los IDs de mitad derecha total si tienes
+const COL_TOTAL_D = new Set([64, 65, 76, 77]);
+const COL_TOTAL_L = new Set([70, 71]);
+
+const COL_MEDIA_T = new Set([]); // Añade aquí los IDs de mitad arriba media
+const COL_MEDIA_R = new Set([]); // Añade aquí los IDs de mitad derecha media
+const COL_MEDIA_D = new Set([30, 31, 126, 127]);
+const COL_MEDIA_L = new Set([]); // Añade aquí los IDs de mitad izquierda media
+
 const COL_TOTAL = new Set([
-  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37,
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 27, 28, 29, 32, 33, 34, 35, 36, 37,
   38, 39, 40, 41, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 94, 95, 96,
   97, 98, 99, 100, 101, 102, 103,
   74, 75, 76, 77, 106, 107, 108, 109 // muros bajables (fases 0 y 1)
 ]);
 
 const COL_MEDIA = new Set([
-  8, 9, 10, 11, 12, 13, 19, 20, 21, 22, 23, 24, 42, 43, 44, 45, 73, 104, 105,
+  8, 9, 10, 11, 12, 13, 19, 21, 23, 30, 31, 42, 43, 44, 45, 73, 104, 105, 126, 127,
   110, 111 // muro bajable, ultima fase: bloquea el paso pero no las balas
 ]);
+
+// Tiles de pinchos que hacen daño
+const SPIKE_TILES = new Set([10, 11, 12, 13]); // <-- Pon aquí los IDs exactos de tus pinchos
 
 let itemsLayer = [];
 let fondoLayer = [];
@@ -135,11 +149,12 @@ function releaseComposite(idx) {
 
 // Cada moneda cae en su celda o, al azar, un tile a izquierda/derecha y/o uno mas abajo (si esta libre),
 // y se voltea al azar (espejo) para que no queden todas iguales.
+// tiles.js
 function pickCoinCell(idx) {
   const tx0 = idx % MAP_W, ty0 = (idx / MAP_W) | 0;
-  const dx = rnd(3) - 1, dy = rnd(2);
-  const tries = [[dx, dy], [dx, 0], [0, dy], [0, 0]];
-  for (const [ox, oy] of tries) {
+  // Solo permite desplazamientos a los lados (dx: -1, 0, 1) y hacia abajo (dy: 0, 1), nunca arriba (dy < 0)
+  const dirs = shuffle([[-1, 0], [1, 0], [0, 1], [-1, 1], [1, 1], [0, 0]]);
+  for (const [ox, oy] of dirs) {
     const tx = tx0 + ox, ty = ty0 + oy;
     if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) continue;
     const t = ty * MAP_W + tx;

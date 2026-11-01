@@ -1,10 +1,9 @@
 "use strict";
 /* Movimiento con colisiones (tryMove, nudge, findFree...). */
-
 function getTileCollision(tileId) {
   if (tileId < 0) return 0;
-  if (COL_TOTAL.has(tileId)) return 2; // Total
-  if (COL_MEDIA.has(tileId)) return 1; // Media (permite balas)
+  if (COL_TOTAL.has(tileId) || COL_TOTAL_T.has(tileId) || COL_TOTAL_R.has(tileId) || COL_TOTAL_D.has(tileId) || COL_TOTAL_L.has(tileId)) return 2; // Total
+  if (COL_MEDIA.has(tileId) || COL_MEDIA_T.has(tileId) || COL_MEDIA_R.has(tileId) || COL_MEDIA_D.has(tileId) || COL_MEDIA_L.has(tileId)) return 1; // Media (permite balas)
   return 0;
 }
 
@@ -28,13 +27,15 @@ function boxBlocked(x, y, b, isFlying = false, limitToCam = false) {
       if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) col = 2;
       else {
         const idx = ty * MAP_W + tx;
-        const top = ty * 8;
-        // Colisiones parciales: 36 solo mitad superior; 64 y 65 solo mitad inferior.
+        const top = ty * 8, left = tx * 8;
         const layerCol = (id) => {
           const c = getTileCollision(id);
           if (c === 0) return 0;
-          if (id === 36 && t >= top + 4) return 0;
-          if ((id === 64 || id === 65) && bt < top + 4) return 0;
+          // Comprobación de medio tile (Arriba, Abajo, Izquierda, Derecha)
+          if ((COL_TOTAL_T.has(id) || COL_MEDIA_T.has(id)) && t >= top + 4) return 0;
+          if ((COL_TOTAL_D.has(id) || COL_MEDIA_D.has(id)) && bt < top + 4) return 0;
+          if ((COL_TOTAL_L.has(id) || COL_MEDIA_L.has(id)) && l >= left + 4) return 0;
+          if ((COL_TOTAL_R.has(id) || COL_MEDIA_R.has(id)) && r < left + 4) return 0;
           return c;
         };
         col = Math.max(layerCol(itemsLayer[idx]), layerCol(fondoLayer[idx]));

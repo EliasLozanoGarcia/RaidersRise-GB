@@ -1,9 +1,35 @@
 "use strict";
 /* Bucle principal: update(), inicializacion y game loop. */
 
+window.pauseSel = 0;
+
 function update() {
   if (screen !== "game") { updateMenu(); return; }
   if (shop) { updateShop(); return; }
+
+  const prAll = input.pressed[0] | input.pressed[1];
+  if (!gameOver && (prAll & BTN.START)) {
+    paused = !paused;
+    window.pauseSel = 0;
+    return;
+  }
+  if (paused) {
+    if (prAll & BTN.UP) window.pauseSel = (window.pauseSel + 2) % 3;
+    if (prAll & BTN.DOWN) window.pauseSel = (window.pauseSel + 1) % 3;
+    if (prAll & (BTN.A | BTN.START)) {
+      if (window.pauseSel === 0) {
+        paused = false; // Continuar
+      } else if (window.pauseSel === 1) {
+        paused = false;
+        resetGame(); // Reiniciar
+      } else if (window.pauseSel === 2) {
+        paused = false;
+        resetGame();
+        openSelect(); // Salir al menú
+      }
+    }
+    return;
+  }
   
   // 1. Declaramos primero las variables necesarias
   const live = players.filter(p => p.active && p.hp > 0);
@@ -212,11 +238,9 @@ async function start() {
     last = now;
     while (acc >= STEP) {
       acc -= STEP;
-      if (!paused) {
-        input.poll();
-        update();
-        frame++;
-      }
+      input.poll();
+      update();
+      if (!paused) frame++;
     }
     render();
     requestAnimationFrame(loop);

@@ -3,11 +3,11 @@
   2) capa de objetos -> maps/<mapa>_Logic.json    (Start, End, EnemiSpawner; rectangulos [x, y, w, h])
 
 Uso (desde la carpeta del proyecto):
-    python tools/export_all.py
-    python tools/export_all.py ../ART/Tilesmaps maps
-    python tools/export_all.py --tiled "C:/Program Files/Tiled/tiled.exe"
-    python tools/export_all.py --only Level1-3 Level1-99     # solo esos mapas
-    python tools/export_all.py --no-csv                     # solo el JSON de logica
+    python tools/export_all_maps.py
+    python tools/export_all_maps.py ../ART/Tilesmaps maps
+    python tools/export_all_maps.py --tiled "C:/Program Files/Tiled/tiled.exe"
+    python tools/export_all_maps.py --only Level1-3 Level1-99     # solo esos mapas
+    python tools/export_all_maps.py --no-csv                     # solo el JSON de logica
 """
 import argparse
 import json

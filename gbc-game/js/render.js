@@ -29,16 +29,17 @@ function makeHitImage(img, brighten = false) {
     return img;
   }
 }
-function drawMapTile(ctx, tx, ty, tileId, attr, hit = false, dy = 0) {
+
+function drawMapTile(ctx, tx, ty, tileId, attr, hit = false, dy = 0, dx = 0) {
   if (tileId < 0) return;
-  const screenX = tx * 8 - cam.x;
+  const screenX = tx * 8 - cam.x + dx;
   const screenY = ty * 8 - cam.y + dy;
   const sourceX = (tileId % 32) * 8;
   const sourceY = (tileId >> 5) * 8;
   const flags = attr || 0;
   ctx.save();
   ctx.translate(screenX + 4, screenY + 4);
- if (flags & 0x20) ctx.scale(-1, 1);
+  if (flags & 0x20) ctx.scale(-1, 1);
   if (flags & 0x40) ctx.scale(1, -1);
   ctx.drawImage(hit && hitImages.tileset ? hitImages.tileset : assets.tilesetImage, sourceX, sourceY, 8, 8, -4, -4, 8, 8);
   ctx.restore();
@@ -98,15 +99,15 @@ function drawText(ctx, str, x, y) {
   const w = textWidth(s);
   if (!w || !tileBufCtx) return;
   if (s !== lastText) {
-  tileBufCtx.clearRect(0, 0, TEXT_TILES * 8, 8);
-  let pen = 0;
-  for (const ch of s) {
-    const g = fontGlyphs[ch];
-    if (g && g.w) tileBufCtx.drawImage(assets.fontTinted, g.sx, (FONT_CHARS.indexOf(ch) >> 3) * 8, g.w, 8, pen, 0, g.w, 8);
-    pen += g ? g.w + 1 : SPACE_W + 1;
-    if (pen >= TEXT_TILES * 8) break;
-  }
-  lastText = s;
+    tileBufCtx.clearRect(0, 0, TEXT_TILES * 8, 8);
+    let pen = 0;
+    for (const ch of s) {
+      const g = fontGlyphs[ch];
+      if (g && g.w) tileBufCtx.drawImage(assets.fontTinted, g.sx, (FONT_CHARS.indexOf(ch) >> 3) * 8, g.w, 8, pen, 0, g.w, 8);
+      pen += g ? g.w + 1 : SPACE_W + 1;
+      if (pen >= TEXT_TILES * 8) break;
+    }
+    lastText = s;
   }
   const tiles = Math.min(TEXT_TILES, Math.ceil(w / 8));
   for (let i = 0; i < tiles; i++) drawGlyph(ctx, TEXT_IDS[i], x + i * 8, y);
@@ -188,7 +189,6 @@ function drawGameOver(ctx) {
     }
   });
 }
-
 
 function drawGlyph(ctx, id, x, y) {
   if (TEXT_SLOT.has(id)) ctx.drawImage(assets.textBuffer, TEXT_SLOT.get(id) * 8, 0, 8, 8, x, y, 8, 8);
@@ -275,11 +275,13 @@ function render() {
   }
   const flashed = (idx) => hitCells.has(idx) || barrierHit.has(idx) || blasts.has(idx) || spCells.has(idx);
 
+  // 1. Capa de fondo (fondoLayer)
   for (let ty = firstTileY; ty <= lastTileY; ty++) {
     for (let tx = firstTileX; tx <= lastTileX; tx++) {
       const idx = ty * MAP_W + tx;
+      const hasOffX = typeof tileOffX !== "undefined" && tileOffX.has(idx);
       const fs = compSlot.get(idx);
-      if (fs !== undefined && !flashed(idx) && !tileOffY.has(idx)) {
+      if (fs !== undefined && !flashed(idx) && !tileOffY.has(idx) && !hasOffX) {
         if (!coinWaiting(idx) || fondoClear(idx)) ctx.drawImage(compCv, fs * 8, 0, 8, 8, tx * 8 - cam.x, ty * 8 - cam.y, 8, 8);
         continue;
       }
@@ -287,13 +289,15 @@ function render() {
     }
   }
 
+  // 2. Capa de items (itemsLayer) con soporte para offset vertical (tileOffY) y horizontal (tileOffX)
   for (let ty = firstTileY; ty <= lastTileY; ty++) {
     for (let tx = firstTileX; tx <= lastTileX; tx++) {
       const idx = ty * MAP_W + tx;
       if (itemsLayer[idx] < 0 || coinWaiting(idx)) continue;
+      const hasOffX = typeof tileOffX !== "undefined" && tileOffX.has(idx);
       const slot = compSlot.get(idx);
-      if (slot !== undefined && !flashed(idx) && !tileOffY.has(idx)) continue;
-      drawMapTile(ctx, tx, ty, itemsLayer[idx], itemsAttrs[idx], flashed(idx), tileOffY.get(idx) || 0);
+      if (slot !== undefined && !flashed(idx) && !tileOffY.has(idx) && !hasOffX) continue;
+      drawMapTile(ctx, tx, ty, itemsLayer[idx], itemsAttrs[idx], flashed(idx), tileOffY.get(idx) || 0, hasOffX ? tileOffX.get(idx) : 0);
     }
   }
 
@@ -345,16 +349,29 @@ function render() {
       continue;
     }
     const shot = b.img && assets[b.img];
-    if (shot) { // sprite del disparo, centrado en la bala
-      ctx.drawImage(shot, (b.x >> 8) - cam.x - (shot.width >> 1), (b.y >> 8) - cam.y - (shot.height >> 1));
+    if (shot) { // sprite del disparo con 3 frames (0: vert, 1: 45º, 2: horiz) y mirror
+      const frames = shot.width >= 12 ? 3 : 1;
+      const fw = (shot.width / frames) | 0;
+      const fh = shot.height;
+      const fIdx = frames === 3 ? (b.bulletFrame ?? 2) : 0;
+      const sx = fIdx * fw;
+      const dx = (b.x >> 8) - cam.x - (fw >> 1);
+      const dy = (b.y >> 8) - cam.y - (fh >> 1);
+      if (b.mirror) {
+        ctx.save();
+        ctx.translate(dx + fw, dy);
+        ctx.scale(-1, 1);
+        ctx.drawImage(shot, sx, 0, fw, fh, 0, 0, fw, fh);
+        ctx.restore();
+      } else {
+        ctx.drawImage(shot, sx, 0, fw, fh, dx, dy, fw, fh);
+      }
       continue;
     }
     if (b.direct) { ctx.fillRect((b.x >> 8) - cam.x - 1, (b.y >> 8) - cam.y - 1, 2, 2); continue; }
     ctx.fillRect((b.x >> 8) - cam.x - 2, (b.y >> 8) - cam.y - 2, 4, 4);
   }
 
-  // Limite de sprites: un sprite oculto un frame se muestra en el siguiente; si hay demasiados,
-  // los mas lejanos al jugador pueden quedar ocultos hasta 2 frames seguidos.
   if (selFrame !== frame) {
     selFrame = frame;
     const live = players.filter((p) => p.active && p.hp > 0);
@@ -399,9 +416,22 @@ function render() {
   drawHud(ctx);
   if (gameOver) drawGameOver(ctx);
   if (shop) drawShop(ctx);
+  if (paused && !gameOver && !shop) {
+    ctx.fillStyle = "rgba(15,56,15,0.85)";
+    ctx.fillRect(0, 0, GBC_W, VIEW_H);
+    drawTextCentered(ctx, "PAUSA", 28);
+    ["CONTINUAR", "REINICIAR", "SALIR"].forEach((label, i) => {
+      const lx = (GBC_W - textWidth(label)) >> 1;
+      const ly = 54 + i * 14;
+      drawText(ctx, label, lx, ly);
+      if (i === (window.pauseSel || 0)) {
+        ctx.fillStyle = "#7a953a";
+        ctx.fillRect(lx - 8, ly + 3, 4, 2);
+      }
+    });
+  }
 
   const status = players.map((p) => p.active ? `J${p.id + 1} HP ${p.hp} $ ${p.coins}` : `J${p.id + 1} -`).join("   ");
   document.getElementById("info").textContent = gameOver ? "GAME OVER - Arriba/Abajo elegir, Enter o disparo confirmar" :
     `${paused ? "PAUSA · " : ""}${status}   Oleada ${wave}   Enemigos ${enemies.length}`;
 }
-

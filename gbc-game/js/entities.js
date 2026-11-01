@@ -11,12 +11,11 @@ function newPlayer(i, x, y) {
   return p;
 }
 
-
 const SPAWNS = [[10, 10], [20, 10], [12, 25], [22, 26], [8, 18], [18, 18], [26, 10], [6, 26]];
 
 function spawnEnemyAt(tileX, tileY, typeName) {
   const type = CFG.enemyTypes[typeName];
-  const box = type.size === 8 ? EBOX : { x: 2, y: 5, w: type.size - 4, h: type.size - 4 };
+  const box = type.size === 8 ? EBOX : { x: 2, y: 2, w: type.size - 4, h: type.size - 4 };
   for (let radius = 0; radius < Math.max(MAP_W, MAP_H); radius++) {
     for (let oy = -radius; oy <= radius; oy++) {
       for (let ox = -radius; ox <= radius; ox++) {
@@ -64,28 +63,39 @@ function spawnWave() {
   const cycle = ((level - 1) / layouts.length) | 0;
   const count = Math.min(CFG.waveBase + cycle * 20 + (wave - 1) * CFG.wavePerWave, CFG.waveMax + cycle * 20);
   let spawned = 0;
-  
-  // Obtenemos las zonas de spawn del nivel actual (comprobando 'spawners' o 'enemies' según tu JSON)
+
+  // 1. Spawn Areas Custom por tipo con parámetro de cantidad
+  if (levelLogic && levelLogic.customSpawners && levelLogic.customSpawners.length > 0) {
+    for (const zone of levelLogic.customSpawners) {
+      let zSpawned = 0;
+      const zCount = zone.count || 1;
+      for (let i = 0; i < zCount * 4 && zSpawned < zCount; i++) {
+        const tileX = (zone.x + rnd(zone.w || 16)) >> 3;
+        const tileY = (zone.y + rnd(zone.h || 16)) >> 3;
+        const px = tileX * 8, py = tileY * 8;
+        if (players.some((p) => p.active && p.hp > 0 && Math.abs((p.x >> 8) - px) < 48 && Math.abs((p.y >> 8) - py) < 48)) continue;
+        if (spawnEnemyAt(tileX, tileY, zone.type || pickEnemyType())) {
+          zSpawned++;
+          spawned++;
+        }
+      }
+    }
+  }
+
+  // 2. Mantiene el Spawn aleatorio tal como estaba
   const areas = levelLogic && (levelLogic.spawners || levelLogic.enemies);
-  
   if (!areas || areas.length === 0) {
-    console.warn("Este nivel no tiene áreas de spawn definidas en su archivo Logic.");
-    return; // Si no hay áreas en el JSON, no spawnea fuera de ellas
+    if (!spawned) console.warn("Este nivel no tiene áreas de spawn definidas en su archivo Logic.");
+    waveTimer = spawned ? CFG.wavePause : 30;
+    return;
   }
 
   for (let i = 0; i < count * 4 && spawned < count; i++) {
-    // Elegimos una zona de spawn de las definidas en el JSON al azar o de forma cíclica
     const r = areas[rnd(areas.length)];
-    
-    // r format esperado en Tiled: [x, y, ancho, alto] en píxeles (o tiles)
     const tileX = (r[0] + rnd(r[2] || 16)) >> 3;
     const tileY = (r[1] + rnd(r[3] || 16)) >> 3;
-
     const px = tileX * 8, py = tileY * 8;
-    
-    // Evitar spawnear ENCIMA o muy cerca del jugador
     if (players.some((p) => p.active && p.hp > 0 && Math.abs((p.x >> 8) - px) < 48 && Math.abs((p.y >> 8) - py) < 48)) continue;
-    
     if (spawnEnemyAt(tileX, tileY, pickEnemyType())) spawned++;
   }
   waveTimer = spawned ? CFG.wavePause : 30;
@@ -193,7 +203,6 @@ function updateTeleport(player) {
   }
 }
 
-// Abeja: vuelo err�tico. Rumbo continuo con bandazos sinusoidales, giros bruscos aleatorios y espiral alrededor del objetivo.
 function updateBee(e, target) {
   e.t = (e.t || 0) + 1;
   if (e.heading === undefined) { e.heading = rnd(256); e.phase = rnd(256); e.turnT = 0; e.turn = 0; }
@@ -296,7 +305,7 @@ function updatePlayer(p) {
     updateTeleport(p);
     return;
   }
-  unstickPlayer(p, false); // si queda atrapado (muro o fuera del mapa), lo empuja hacia un hueco libre
+  unstickPlayer(p, false);
 
   if (!firing) p.aim = null;
   else if (p.aim == null && !p.pushing) p.aim = p.facing;
@@ -305,6 +314,7 @@ function updatePlayer(p) {
     p.facing = p.pushFacing;
   } else if (firing && p.aim != null) p.facing = p.aim;
   else if (!firing && moving) p.facing = DIR_INDEX[(dy + 1) * 3 + (dx + 1)];
+  
   if (p.dash) {
     const dd = p.dash;
     const step = dd.d[0] && dd.d[1] ? 181 : 256;
@@ -337,7 +347,6 @@ function updatePlayer(p) {
 
   if (p.pushAnim) {
     p.pushAnimT++;
-    // Arriba: filas 0-1 a 0,15 s; lateral: filas 2-3 a 0,5 s (izquierda = volteado).
     const hold = p.pushAnim === "up" ? CFG.pushUpFrames : CFG.pushSideFrames;
     p.row = (p.pushAnim === "up" ? 0 : 2) + (((p.pushAnimT / hold) | 0) % 2);
     if (moving) p.animT++;
@@ -354,6 +363,7 @@ function updatePlayer(p) {
   if (p.cd > 0) p.cd--;
   if (p.slash > 0) p.slash--;
   if (p.reloadT > 0 && --p.reloadT === 0) { p.ammo = ammoMax(p); sfx("reload"); }
+  
   if (firing && p.cd === 0 && p.reloadT === 0) {
     const d = DIRS[p.facing], u = DIRU[p.facing];
     if (p.ch.weapon === "sword") {
@@ -371,6 +381,17 @@ function updatePlayer(p) {
     } else {
       let vx = (u[0] * CFG.bulletSpeed) >> 8, vy = (u[1] * CFG.bulletSpeed) >> 8;
       const gun = p.ch.weapon === "gun";
+      
+      let bulletFrame = 2;
+      let mirror = false;
+      const ax = Math.abs(vx), ay = Math.abs(vy);
+      if (ay > ax * 2) {
+        bulletFrame = 0;
+      } else if (ax > 0 && ay > 0) {
+        bulletFrame = 1;
+        if ((vx > 0 && vy < 0) || (vx < 0 && vy > 0)) mirror = true;
+      }
+
       if (gun) {
         const a = DIR_ANG[p.facing] + rnd(25) - 12;
         vx = (cosb(a) * CFG.bulletSpeed) >> 8; vy = (sinb(a) * CFG.bulletSpeed) >> 8;
@@ -378,7 +399,17 @@ function updatePlayer(p) {
         tryMove(p, -d[0] * 256, -d[1] * 256, PBOX, true);
       }
       const tip = BAZOOKA_TIP[p.facing][p.row % 2 ? 1 : 0];
-      bullets.push({ x: ((p.x >> 8) + tip[0]) * 256 + 128, y: ((p.y >> 8) + tip[1]) * 256 + 128, vx, vy, life: bulletRange() << 8, direct: gun, img: gun ? "shotSmallImage" : "shotBigImage" }); // Kurt (gun) / Kathy (cohete)
+      bullets.push({ 
+        x: ((p.x >> 8) + tip[0]) * 256 + 128, 
+        y: ((p.y >> 8) + tip[1]) * 256 + 128, 
+        vx, vy, 
+        life: bulletRange() << 8, 
+        direct: gun, 
+        isKurt: gun, 
+        bulletFrame, 
+        mirror, 
+        img: gun ? "shotSmallImage" : "shotBigImage" 
+      });
       p.cd = fireDelay(p);
       if (!gun || stats.shots % 3 === 0) sfx("shot");
       stats.shots++;
@@ -394,9 +425,11 @@ function updatePlayer(p) {
   const right = Math.min(MAP_W - 1, (px + PBOX.x + PBOX.w - 1) >> 3);
   const top = Math.max(0, (py + PBOX.y) >> 3);
   const bottom = Math.min(MAP_H - 1, (py + PBOX.y + PBOX.h - 1) >> 3);
+  
   for (let ty = top; ty <= bottom; ty++) {
     for (let tx = left; tx <= right; tx++) {
       const idx = ty * MAP_W + tx;
+
       if (itemsLayer[idx] === 26) {
         setItemTile(idx, -1);
         p.hp = Math.min(maxHp(p), p.hp + 1);
@@ -412,8 +445,6 @@ function updatePlayer(p) {
   if (p.inv > 0) p.inv--;
 }
 
-// Habilidad especial: mantener SELECT apunta un area delante; al soltar queda activa (Kathy: dano continuo; Kurt: golpe x3 instantaneo).
-// Skreek lanza un proyectil que lo atraviesa todo al pulsar SELECT con la barra llena.
 function specialRect(sp) {
   return { x: sp.tx * 8, y: sp.ty * 8, w: sp.w * 8, h: sp.h * 8 };
 }
@@ -464,7 +495,8 @@ function updateSpecial(p, held) {
     let w = specialSize(), h = w;
     if (ult === "burst") {
       const long = 5 + lv("spArea");
-      [w, h] = d[0] ? [long, 2] : [2, long];
+      // Kurt ultimate: área girada 90 grados
+      [w, h] = d[0] ? [2, long] : [long, 2];
     }
     const dist = (d[0] ? w : h) * 4 + 8;
     const cx = (p.x >> 8) + 8 + ((u[0] * dist + 128) >> 8);
@@ -485,7 +517,6 @@ function updateSpecial(p, held) {
   }
 }
 
-// Continuar: mismo mapa, oleada, monedas y cristales; los jugadores reviven con la vida completa.
 function continueGame() {
   players.forEach((p, i) => {
     if (!p.active) return;
@@ -505,4 +536,3 @@ function continueGame() {
   gameOver = false;
   goSel = 0;
 }
-
