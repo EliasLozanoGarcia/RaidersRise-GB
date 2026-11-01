@@ -1,21 +1,11 @@
 Las balas de Kurt han de pasar por las colisiones medias, ahora chocan con ellas como si fueran totales.
-Aplica algulos a las balas, 3 frames el primero es bala vertical, el segundo es bala a 45 arriva a la derecha o abajo a la izquierda, este mismo con mirror para los otros dos angulos, y el tercer frame para horizontal.Ç
-En offset en la puerta abierta al empujarl ha de ser horizontal hacia la derecha.
-Los cofres que estan a la derecha de otro cofre, o sea ctocandose, no sae puede habrir.
-Kurt ultimate, el area ha de estar girada 90 grados.
-Que las monedas de los cofres siempre salgan a los lados y abajo, pero nunca mas arriva del cofre.
-Los pinchos deberian hacer daño.
+La puerta abierta solo se ha de poder empujar desde la izquierda
 Crear Spawn Areas custom para Slugs, Big Slugs, Bees, Big Bees, etc... con algun para metro de cantidad, Manten el Spawn tal coimo esta ahora para spam totalmente aleatorio de todo.
-Boton de pausa co nopcion de salir y reniciar.
 Al empujar puerta y aplicar el ofset a la puerta, mover el personaje un pixel en la direccion del empuje para acompañar el movimiento.
-Pon el Tiles 8 tipos mas de colision de medio tile, que serian: 
-Colision-Total-T (la mitad de arriva) 20,22,24
-Colision-Total-R (la mitad Derecha)
-Colision-Total-D (la mitad de abajo) 76,77
-Colision-Total-T (la mitad izquierda) 70,71
-Colision-Media-T (la mitad de arriva)
-Colision-Media-R (la mitad Derecha)
-Colision-Media-D (la mitad de abajo) 30,31126,127
-Colision-Media-T (la mitad izquierda)
+Que de la Lucky block pueda salir un corazon, Mana, o un diamante.
+Mover el mana y la moneda a la fila de items.
+Las balas y las Bees no atraviesan los tiles de colision medium
+Los sprityes enemigos no se ordenan bien, los que estan mas arriva han de pintarse por detras
+No has de poder abrir dos cofres a la vez.
 
 
