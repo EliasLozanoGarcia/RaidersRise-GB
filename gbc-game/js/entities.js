@@ -325,7 +325,7 @@ function updatePlayer(p) {
       if (!a && !b) { dd.left = 0; break; }
       dd.left -= 1;
     }
-    p.row = 1 + (((frame / 2) | 0) % 4);
+    p.row = 5 + (((frame / 2) | 0) % 4);
     if (dd.left <= 0) p.dash = null;
     if (p.inv > 0) p.inv--;
     return;
@@ -399,8 +399,13 @@ function updatePlayer(p) {
       } else {
         tryMove(p, -d[0] * 256, -d[1] * 256, PBOX, true);
       }
-      const tip = BAZOOKA_TIP[p.facing][p.row % 2 ? 1 : 0];
-      bullets.push({ 
+   // Seleccionamos la tabla correcta según si el personaje usa ametralladora (Kurt) o no
+     // Identificamos a Kurt directamente por su ID de imagen
+      const currentTipTable = (p.ch.img === "kurtImage") ? GUN_TIP : BAZOOKA_TIP;
+      const tip = currentTipTable[p.facing][p.row % 2 ? 1 : 0];
+    
+      
+      bullets.push({
         x: ((p.x >> 8) + tip[0]) * 256 + 128, 
         y: ((p.y >> 8) + tip[1]) * 256 + 128, 
         vx, vy, 

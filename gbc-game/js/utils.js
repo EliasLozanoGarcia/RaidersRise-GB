@@ -12,9 +12,29 @@ const DIRS = [[-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 
 const DIR_INDEX = [];
 // Pixel claro de la punta del bazooka dentro del sprite 16x16, por direccion: [filas 0/2/4, filas 1/3].
 const BAZOOKA_TIP = [
-  [[1, 8], [1, 7]], [[3, 3], [2, 3]], [[6, 2], [6, 1]], [[11, 1], [11, 2]],
-  [[9, 2], [9, 1]], [[12, 3], [13, 3]], [[14, 8], [14, 7]], [[4, 11], [4, 10]],
+  [[ 1,  8], [ 1,  7]], // 0: Derecha
+  [[ 3,  3], [ 2,  3]], // 1: Abajo-Derecha
+  [[ 6,  2], [ 6,  1]], // 2: Abajo
+  [[11,  1], [11,  2]], // 3: Abajo-Izquierda
+  [[ 9,  2], [ 9,  1]], // 4: Izquierda
+  [[12,  3], [13,  3]], // 5: Arriba-Izquierda
+  [[14,  8], [14,  7]], // 6: Arriba
+  [[ 4, 11], [ 4, 10]]  // 7: Arriba-Derecha
 ];
+
+// NUEVA TABLA EXCLUSIVA PARA KURT
+const GUN_TIP = [
+  [[ 0, 14], [ 0, 15]], // 3: Abajo-Izquierda  (Es la columna 0 de tu imagen)
+  [[ 0,  5], [ 0,  5]], // 4: Izquierda        (Es la columna 1 de tu imagen)
+  [[ 2,  1], [ 2,  2]], // 5: Arriba-Izquierda (Es la columna 2 de tu imagen)
+  [[10,  0], [10,  1]], // 6: Arriba           (Es la columna 3 de tu imagen)
+  [[15,  1], [15,  1]],  // 7: Arriba-Derecha   (Es la columna 4 de tu imagen)
+  [[15,  8], [15,  8]], // 0: Derecha          (Es la columna 5 de tu imagen)
+  [[15, 15], [15, 15]], // 1: Abajo-Derecha    (Es la columna 6 de tu imagen)
+  [[ 4, 14], [ 4, 15]], // 2: Abajo            (Es la columna 7, sin punto rojo, calculado al centro)
+ 
+];
+
 DIRS.forEach((d, i) => { DIR_INDEX[(d[1] + 1) * 3 + (d[0] + 1)] = i; });
 
 // ------------------------------------------------------------ Aritmetica entera (sin coma flotante)
