@@ -2,7 +2,7 @@ Las balas de Kurt han de pasar por las colisiones medias, ahora chocan con ellas
 La puerta abierta solo se ha de poder empujar desde la izquierda
 Crear Spawn Areas custom para Slugs, Big Slugs, Bees, Big Bees, etc... con algun para metro de cantidad, Manten el Spawn tal coimo esta ahora para spam totalmente aleatorio de todo.
 Al empujar puerta y aplicar el ofset a la puerta, mover el personaje un pixel en la direccion del empuje para acompañar el movimiento.
-Las balas y las Bees no atraviesan los tiles de colision medium
+
 Los sprityes enemigos no se ordenan bien, los que estan mas arriva han de pintarse por detras
 
 
