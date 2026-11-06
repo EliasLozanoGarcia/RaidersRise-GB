@@ -14,15 +14,15 @@ const COL_MEDIA_D = new Set([30, 31, 126, 127]);
 const COL_MEDIA_L = new Set([]); // Añade aquí los IDs de mitad izquierda media
 
 const COL_TOTAL = new Set([
-  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 27, 28, 29, 32, 33, 34, 35, 36, 37,
-  38, 39, 40, 41, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 94, 95, 96,
+  0, 1, 2, 3, 4, 5, 6, 7, 27, 28, 29, 32, 33, 34, 35, 36, 37,
+  38, 39, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 94, 95, 96,
   97, 98, 99, 100, 101, 102, 103,
   74, 75, 76, 77, 106, 107, 108, 109 // muros bajables (fases 0 y 1)
 ]);
 
 const COL_MEDIA = new Set([
-  8, 9, 10, 11, 12, 13, 19, 21, 23, 30, 31, 42, 43, 44, 45, 73, 104, 105, 126, 127,
-  110, 111 // muro bajable, ultima fase: bloquea el paso pero no las balas
+  8, 9, 10, 11, 12, 13, 19, 21, 23, 30, 31, 40, 41, 42, 43, 44, 45, 73, 104, 105, 126, 127,
+  110, 111 // muro bajable, ultima fase: bloquea el paso pero no las balas ni cosas que vuelen
 ]);
 
 let itemsLayer = [];
