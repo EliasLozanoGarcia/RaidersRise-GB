@@ -92,7 +92,7 @@ window.DMGLoader = (function () {
         loadImage("assets/enemies_run.png"),
         loadImage("assets/enemies_Bee.png"),
         loadImage("assets/enemies_Slug_Big.png"),
-        loadImage("assets/Teleport_GBC.png"),
+        loadImage("assets/Teleport_GBC.png").catch(() => null),
         loadImage("assets/font_8x8.png"),
         loadImage("assets/portraits.png"),
         // Sprites de disparo: si faltan, el juego dibuja las balas como cuadrados (no es fatal).

@@ -302,10 +302,11 @@ function render() {
   }
 
   for (const effect of teleportEffects) {
+    if (effect.overPlayer) continue;
     const spriteFrame = Math.min(7, effect.age >> 1);
     ctx.drawImage(
-      assets.teleportImage,
-      spriteFrame * 16, 0, 16, 16,
+      assets.playerImage,
+      spriteFrame * 16, 5 * 16, 16, 16,
       effect.x - cam.x, effect.y - cam.y, 16, 16
     );
   }
@@ -329,6 +330,16 @@ function render() {
       ctx.drawImage(sheet, spriteColumn * 16, p.row * 16, 16, 16, px, py, 16, 16);
     }
     if (p.tp) ctx.globalAlpha = 1;
+  }
+
+  for (const effect of teleportEffects) {
+    if (!effect.overPlayer) continue;
+    const spriteFrame = Math.min(7, effect.age >> 1);
+    ctx.drawImage(
+      assets.playerImage,
+      spriteFrame * 16, 5 * 16, 16, 16,
+      effect.x - cam.x, effect.y - cam.y, 16, 16
+    );
   }
 
   for (const p of players) {

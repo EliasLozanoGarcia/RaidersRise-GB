@@ -20,6 +20,7 @@ const CFG = {
   teleportCooldown: 40,
   teleportStepFrames: 4,
   teleportEffectFrames: 32,
+  teleportOffset: 8,
   hurtFlash: 6,
   barrierHp: 1, // impactos por estado de dano de las barreras (3 estados: 19/20 -> 21/22 -> 23/24 -> destruida)
   bulletSpeed: 3 * 256,

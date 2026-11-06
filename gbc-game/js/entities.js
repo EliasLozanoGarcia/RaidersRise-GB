@@ -169,14 +169,19 @@ function startTeleport(player, facing) {
   }
   if (!destination) return false;
 
-  const entryX = centerX + ((unitX * 8 + 128) >> 8) - 8;
-  const entryY = centerY + ((unitY * 8 + 128) >> 8) - 9;
+  const offset = CFG.teleportOffset || 8;
+  const offX = (unitX * offset + 128) >> 8;
+  const offY = (unitY * offset + 128) >> 8;
+  const entryX = player.x >> 8;
+  const entryY = player.y >> 8;
   player.facing = facing;
   player.tp = {
     step: 0,
     timer: 0,
     direction: facing,
     destination,
+    offX,
+    offY,
   };
   player.animT = 0;
   player.row = 0;
@@ -190,10 +195,12 @@ function updateTeleport(player) {
   teleport.timer = 0;
   teleport.step++;
   if (teleport.step === 1) {
+    const isUp = DIRU[teleport.direction][1] < 0;
     teleportEffects.push({
-      x: teleport.destination[0],
-      y: teleport.destination[1],
+      x: teleport.destination[0] - teleport.offX,
+      y: teleport.destination[1] - teleport.offY,
       age: 0,
+      overPlayer: isUp,
     });
   } else if (teleport.step === 2) {
     player.x = teleport.destination[0] << 8;
