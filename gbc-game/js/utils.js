@@ -76,7 +76,6 @@ function shuffle(arr) {
 }
 
 let MAP_W = 32, MAP_H = 32;
-const HUD_H = 16;
+const HUD_H = 24;
 const VIEW_H = 144 - HUD_H;
 let assets;
-

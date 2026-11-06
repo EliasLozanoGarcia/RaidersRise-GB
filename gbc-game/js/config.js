@@ -41,7 +41,8 @@ const CFG = {
   // Objetos del mapa que aparecen al cargar (el resto de ubicaciones se descarta al azar).
   crystalCount: 1,
   chestCount: 4,
-  manaBoxCount: 4,
+  luckyBoxCount: 4,
+  shieldFrames: 300, // cinco segundos a 60 actualizaciones por segundo
   // Cantidad de enemigos por oleada: waveBase + (oleada-1) * wavePerWave, hasta waveMax.
   waveBase: 30,
   wavePerWave: 10,
@@ -70,4 +71,3 @@ const CFG = {
 const settings = { lang: 0, master: 5, music: 4, sfx: 5 };
 try { Object.assign(settings, JSON.parse(localStorage.getItem("raidersSettings") || "{}")); } catch (err) { /* sin almacenamiento */ }
 function saveSettings() { try { localStorage.setItem("raidersSettings", JSON.stringify(settings)); } catch (err) { /* sin almacenamiento */ } }
-

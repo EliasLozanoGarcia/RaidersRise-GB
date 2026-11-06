@@ -101,9 +101,9 @@ function closeShopAndContinue() {
 function nextLevel() {
   shop = null;
   level++;
-  const saved = players.map((p) => ({ coins: p.coins, crystals: p.crystals, active: p.active }));
+  const saved = players.map((p) => ({ coins: p.coins, crystals: p.crystals, keys: p.keys, grenades: p.grenades, active: p.active }));
   resetGame(true);
-  players.forEach((p, i) => { p.coins = saved[i].coins; p.crystals = saved[i].crystals; p.active = saved[i].active; });
+  players.forEach((p, i) => { p.coins = saved[i].coins; p.crystals = saved[i].crystals; p.keys = saved[i].keys; p.grenades = saved[i].grenades; p.active = saved[i].active; });
 }
 
 function updateShop() {
@@ -129,4 +129,3 @@ function updateShop() {
     }
   }
 }
-

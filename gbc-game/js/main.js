@@ -80,6 +80,7 @@ function update() {
     else blasts.set(idx, timer - 1);
   }
 
+  for (const p of players) if (p.active && p.hp > 0 && p.shield > 0) p.shield--;
   updateInteractives();
   updateCoins();
   for (const p of players) updatePlayer(p);
@@ -92,7 +93,7 @@ function update() {
   for (const e of enemies) {
     if (e.hit > 0) e.hit--;
     for (const p of live) {
-      if (!p.tp && p.inv === 0 && overlap(p.x >> 8, p.y >> 8, PBOX, e.x >> 8, e.y >> 8, e.box)) {
+      if (!p.tp && p.inv === 0 && p.shield === 0 && overlap(p.x >> 8, p.y >> 8, PBOX, e.x >> 8, e.y >> 8, e.box)) {
         p.hp--;
         sfx("hurt");
         p.inv = invulnFrames();

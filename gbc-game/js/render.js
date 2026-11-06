@@ -45,8 +45,8 @@ function drawMapTile(ctx, tx, ty, tileId, attr, hit = false, dy = 0, dx = 0) {
   ctx.restore();
 }
 
-// ------------------------------------------------------------ HUD (2 tiles de alto, parte inferior)
-const GLYPH_COIN = 146, GLYPH_HEART = 147, GLYPH_DIGIT0 = 127; // digitos: 128-136 = 1-9, 137 = 0
+// ------------------------------------------------------------ HUD (3 tiles de alto, parte inferior)
+const GLYPH_COIN = PICKUP.coin, GLYPH_HEART = PICKUP.heart, GLYPH_DIGIT0 = 127; // digitos: 128-136 = 1-9, 137 = 0
 
 // Texto: los glifos de la fuente 8x8 (ancho proporcional) se componen en 32 tiles libres del tileset
 // (ids 74-92 y 106-118, transparentes en el PNG) y despues se pintan como tiles.
@@ -176,7 +176,7 @@ function drawGameOver(ctx) {
     if (!p.active) return;
     drawGlyph(ctx, GLYPH_COIN, 24 + i * 56, y + 2);
     drawText(ctx, String(p.coins), 32 + i * 56, y + 2);
-    drawGem(ctx, 56 + i * 56 - (i ? 8 : 0), y + 2);
+    drawGlyph(ctx, PICKUP.crystal, 56 + i * 56 - (i ? 8 : 0), y + 2);
     drawText(ctx, String(p.crystals), 64 + i * 56 - (i ? 8 : 0), y + 2);
   });
   ["CONTINUAR", "NUEVA PARTIDA"].forEach((label, i) => {
@@ -203,17 +203,13 @@ function drawNumber(ctx, value, x, y) {
   }
 }
 
-function drawGem(ctx, x, y) {
-  const rows = ["..1111..", ".122221.", "12233221", "12233221", ".122221.", "..1221..", "...11...", "........"];
-  const cols = { 1: "#0f380f", 2: "#55742a", 3: "#7a953a" };
-  rows.forEach((row, ry) => {
-    for (let rx = 0; rx < 8; rx++) {
-      const ch = row[rx];
-      if (ch === ".") continue;
-      ctx.fillStyle = ch === "1" ? "#7a953a" : cols[ch];
-      ctx.fillRect(x + rx, y + ry, 1, 1);
-    }
-  });
+function drawHudNumber(ctx, value, x, y, width) {
+  const scale = Math.min(1, width / (String(value).length * 8));
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, 1);
+  drawNumber(ctx, value, 0, 0);
+  ctx.restore();
 }
 
 function drawHud(ctx) {
@@ -224,21 +220,25 @@ function drawHud(ctx) {
     if (!p.active) continue;
     const x0 = p.id * 80;
     for (let h = 0; h < Math.min(p.hp, 7); h++) drawGlyph(ctx, GLYPH_HEART, x0 + h * 8, top);
-    drawGlyph(ctx, GLYPH_COIN, x0 + 56, top);
-    drawNumber(ctx, p.coins, x0 + 64, top);
-    drawGem(ctx, x0 + 56, top + 8);
-    drawNumber(ctx, p.crystals, x0 + 64, top + 8);
-    if (p.reloadT > 0 && ((frame >> 3) & 1)) {
-      drawText(ctx, "RELOAD", x0, top + 8);
-    } else {
-      const full = p.mana >= CFG.specialCharge;
-      ctx.fillStyle = "#55742a";
-      ctx.fillRect(x0, top + 10, 48, 4);
-      ctx.fillStyle = "#0f380f";
-      ctx.fillRect(x0 + 1, top + 11, 46, 2);
-      ctx.fillStyle = full && ((frame >> 3) & 1) ? "#7a953a" : "#55742a";
-      ctx.fillRect(x0 + 1, top + 11, Math.min(46, (p.mana * 5) >> 8), 2);
-    }
+    drawGlyph(ctx, PICKUP.shield, x0 + 56, top);
+    drawHudNumber(ctx, Math.ceil(p.shield / 60), x0 + 64, top, 16);
+    drawGlyph(ctx, PICKUP.mana, x0, top + 8);
+    const full = p.mana >= CFG.specialCharge;
+    ctx.fillStyle = "#55742a";
+    ctx.fillRect(x0 + 8, top + 10, 24, 4);
+    ctx.fillStyle = "#0f380f";
+    ctx.fillRect(x0 + 9, top + 11, 22, 2);
+    ctx.fillStyle = full && ((frame >> 3) & 1) ? "#7a953a" : "#55742a";
+    ctx.fillRect(x0 + 9, top + 11, Math.floor(22 * p.mana / CFG.specialCharge), 2);
+    drawGlyph(ctx, PICKUP.coin, x0 + 32, top + 8);
+    drawHudNumber(ctx, p.coins, x0 + 40, top + 8, 12);
+    drawGlyph(ctx, PICKUP.crystal, x0 + 52, top + 8);
+    drawHudNumber(ctx, p.crystals, x0 + 60, top + 8, 20);
+    drawGlyph(ctx, PICKUP.key, x0, top + 16);
+    drawHudNumber(ctx, p.keys, x0 + 8, top + 16, 16);
+    drawGlyph(ctx, PICKUP.grenade, x0 + 24, top + 16);
+    drawHudNumber(ctx, p.grenades, x0 + 32, top + 16, 16);
+    if (p.reloadT > 0 && ((frame >> 3) & 1)) drawText(ctx, "RELOAD", x0 + 48, top + 16);
   }
 }
 
@@ -269,7 +269,7 @@ function render() {
   }
 
   const hitCells = new Set();
-  for (const b of manaBoxes) {
+  for (const b of luckyBoxes) {
     if (!b.alive || !(b.hit > 0)) continue;
     for (let r = 0; r < 2; r++) for (let c = 0; c < 2; c++) hitCells.add((b.ty + r) * MAP_W + b.tx + c);
   }
