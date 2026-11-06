@@ -205,7 +205,7 @@ function initInteractives() {
   }
 }
 
-function playerPushing(p, box, upOnly = false) {
+function playerPushing(p, box, upOnly = false, mark = true) {
   if (!p.active || p.hp <= 0 || p.tp) return false;
   const held = input.held[p.id];
   const dx = ((held & BTN.RIGHT) ? 1 : 0) - ((held & BTN.LEFT) ? 1 : 0);
@@ -221,6 +221,7 @@ function playerPushing(p, box, upOnly = false) {
   const targetX = box.x + box.w / 2;
   const targetY = box.y + box.h / 2;
   if (dx * (targetX - playerCenterX) + dy * (targetY - playerCenterY) <= 0) return false;
+  if (!mark) return true;
   p.pushing = true;
   p.pushFacing = DIR_INDEX[(dy + 1) * 3 + (dx + 1)];
   if (upOnly) p.pushAnim = "up";
@@ -309,10 +310,25 @@ function updateInteractives() {
   }
 
   // B) COFRE DE MONEDAS EMPUJABLE
+  const chestPushers = new Map();
+  for (const p of players) {
+    let nearest = null, nearestDistance = Infinity;
+    for (const c of coinChests) {
+      if (c.opened) continue;
+      const box = { x: c.tx * 8, y: c.ty * 8, w: 16, h: 16 };
+      if (!playerPushing(p, box, true, false)) continue;
+      const dx = box.x + 8 - ((p.x >> 8) + 8);
+      const dy = box.y + 8 - ((p.y >> 8) + 13);
+      const distance = dx * dx + dy * dy;
+      if (distance < nearestDistance) { nearest = c; nearestDistance = distance; }
+    }
+    if (nearest && !chestPushers.has(nearest)) chestPushers.set(nearest, p);
+  }
   for (const c of coinChests) {
     if (c.opened) continue;
     const cBox = { x: c.tx * 8, y: c.ty * 8, w: 16, h: 16 };
-    const pusher = players.find((p) => playerPushing(p, cBox, true));
+    const pusher = chestPushers.get(c);
+    if (pusher) playerPushing(pusher, cBox, true);
     const topCells = [c.ty * MAP_W + c.tx, c.ty * MAP_W + c.tx + 1];
     if (pusher) {
       if (!c.saved) {
