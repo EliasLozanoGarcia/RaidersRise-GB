@@ -17,7 +17,7 @@ function getCellCollision(tx, ty) {
   return getTileCollision(fondoLayer[idx]);
 }
 
-function boxBlocked(x, y, b, isFlying = false, limitToCam = false) {
+function boxBlocked(x, y, b, isFlying = false, limitToCam = false, ignoredItems = null) {
   const l = x + b.x, t = y + b.y, r = l + b.w - 1, bt = t + b.h - 1;
   if (limitToCam && (l < cam.x || r >= cam.x + 160 || t < cam.y || bt >= cam.y + VIEW_H)) return true;
 
@@ -38,7 +38,7 @@ function boxBlocked(x, y, b, isFlying = false, limitToCam = false) {
           if ((COL_TOTAL_R.has(id) || COL_MEDIA_R.has(id)) && r < left + 4) return 0;
           return c;
         };
-        col = Math.max(layerCol(itemsLayer[idx]), layerCol(fondoLayer[idx]));
+        col = Math.max(ignoredItems && ignoredItems.has(idx) ? 0 : layerCol(itemsLayer[idx]), layerCol(fondoLayer[idx]));
       }
       if (col === 2) return true;
       if (col === 1 && !isFlying) return true;
@@ -117,7 +117,7 @@ function nearestFree(x, y, box, limitToCam, maxR = 64) {
 // Saca a un jugador atrapado. snap = true: lo coloca al instante; si no, lo empuja 1 px por frame hacia el hueco.
 function unstickPlayer(p, snap) {
   const px = p.x >> 8, py = p.y >> 8;
-  if (!boxBlocked(px, py, PBOX, false, true)) return false;
+  if (!boxBlocked(px, py, PBOX, false, true, p.pushDoorCells)) return false;
   const f = nearestFree(px, py, PBOX, true);
   if (!f) return false;
   if (snap) { p.x = f[0] << 8; p.y = f[1] << 8; }
@@ -154,4 +154,3 @@ function findFree(x, y, box, extra) {
   }
   return [x, y];
 }
-

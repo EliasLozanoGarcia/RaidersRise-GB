@@ -230,6 +230,14 @@ function playerPushing(p, box, upOnly = false, mark = true) {
   return true;
 }
 
+function moveWithDoor(p, doorCells) {
+  const dir = DIRS[p.pushFacing];
+  if (!boxBlocked((p.x >> 8) + dir[0], (p.y >> 8) + dir[1], PBOX, false, true, new Set(doorCells))) {
+    p.x += dir[0] * 256;
+    p.y += dir[1] * 256;
+  }
+}
+
 function openCoinChest(chest, player) {
   chest.opened = true;
   player.coins += 5;
@@ -268,7 +276,7 @@ function openCoinChest(chest, player) {
 }
 
 function updateInteractives() {
-  for (const p of players) { p.pushing = false; p.pushAnim = null; }
+  for (const p of players) { p.pushing = false; p.pushAnim = null; p.pushDoorCells = null; }
 
   for (const b of luckyBoxes) if (b.hit > 0) b.hit--;
   for (const [k, v] of barrierHit) { if (v <= 1) barrierHit.delete(k); else barrierHit.set(k, v - 1); }
@@ -381,20 +389,21 @@ function updateInteractives() {
   for (const d of doors) {
     if (d.open) {
       const verticalBox = { x: d.tx * 8, y: d.openTopY * 8, w: 8, h: 24 };
-      const pusher = players.find((p) => playerPushing(p, verticalBox));
+      const pusher = players.find((p) => {
+        const held = input.held[p.id];
+        return (held & BTN.RIGHT) && !(held & (BTN.LEFT | BTN.UP | BTN.DOWN)) &&
+          (p.x >> 8) + PBOX.x + PBOX.w <= verticalBox.x + 1 &&
+          playerPushing(p, verticalBox);
+      });
       const pushing = !!pusher;
       if (!pushing) { d.locked = false; d.closeTime = 0; }
       const active = pushing && !d.locked;
       if (active && d.cells) {
         d.closeTime = (d.closeTime || 0) + 1;
-        // Mueve al personaje 1 px al empujar
-        if (d.closeTime === 24 && pusher) {
-          const dir = DIRS[pusher.pushFacing];
-          pusher.x += dir[0] * 256;
-          pusher.y += dir[1] * 256;
-        }
+        if (d.closeTime === 24) moveWithDoor(pusher, d.openTiles);
       }
       const animating = active && (d.closeTime || 0) >= 24;
+      if (animating) pusher.pushDoorCells = new Set(d.openTiles);
       const openDoorTiles = d.openIds || [70, 69, 68];
       d.openTiles.forEach((cell, i) => {
         setItemTile(cell, openDoorTiles[i], d.openAttrs[i]);
@@ -425,11 +434,8 @@ function updateInteractives() {
     
     if (pushingH && !d.locked) {
       d.pushTime++;
-      if (d.pushTime === 24 && pusherH) {
-        const dir = DIRS[pusherH.pushFacing];
-        pusherH.x += dir[0] * 256;
-        pusherH.y += dir[1] * 256;
-      }
+      if (d.pushTime === 24) moveWithDoor(pusherH, d.cells);
+      if (d.pushTime >= 24) pusherH.pushDoorCells = new Set(d.cells);
       if (d.pushTime >= 24) for (let col = 1; col < d.width; col++) {
         const top = d.ty * MAP_W + d.tx + col;
         const bottom = top + MAP_W;

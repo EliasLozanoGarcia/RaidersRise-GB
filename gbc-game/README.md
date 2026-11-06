@@ -24,8 +24,10 @@ cuando se abre la pagina directamente con `file://`.
 Para abrir un cofre o una puerta, mantente empujándolo en su dirección durante
 1,5 segundos. La hoja de la puerta gira junto al marco y deja libre el paso. Si
 dejas de empujar o te alejas antes de abrirlos, el progreso se reinicia. La
-puerta abierta también responde al empuje con una animación breve. El personaje
-muestra la animación de empuje al presionar contra cofres o puertas.
+puerta abierta solo se puede empujar desde la izquierda. Al iniciar el
+desplazamiento de la puerta, el personaje avanza un pixel en la direccion del
+empuje si no hay una colision que lo impida. El personaje muestra la animación
+de empuje al presionar contra cofres o puertas.
 Si hay varios cofres al alcance, cada jugador empuja solo el más cercano.
 
 Pulsa `P` para pausar. Se admiten dos
