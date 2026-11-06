@@ -10,7 +10,10 @@ function setup() {
   const context = vm.createContext({ console });
   vm.runInContext(`
     const calls = [];
-    const gbc = { ctx: { clearRect() {}, fillRect() {}, drawImage(...args) { calls.push(args); } } };
+    const transforms = [];
+    const gbc = { ctx: { clearRect() {}, fillRect() {}, save() { transforms.push("save"); },
+      restore() { transforms.push("restore"); }, beginPath() {}, rect() {}, clip() {},
+      translate(x, y) { transforms.push([x, y]); }, drawImage(...args) { calls.push(args); } } };
     const document = {
       getElementById() { return {}; },
       createElement() {
@@ -42,7 +45,7 @@ function setup() {
     const assets = { enemyImage: image("slug", 8, [7, 2]), bigSlugImage: image("big", 16, [15]), beeImage: image("bee", 8, [6, 3]) };
     const players = [], enemies = [], bullets = [], luckyBoxes = [], teleportEffects = [];
     const blasts = new Map(), barrierHit = new Map();
-    let frame = 0, selFrame = -1, screen = "game", gameOver = false, paused = false, shop = null, wave = 0;
+    let frame = 0, selFrame = -1, screen = "game", gameOver = false, paused = false, shop = null, wave = 0, wallShake = 0;
   `, context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", "render.js"), "utf8"), context);
   vm.runInContext("initEnemyFrameBottoms()", context);
@@ -132,4 +135,14 @@ test("el descarte en el borde utiliza la posicion visual ajustada", () => {
   assert.equal(run("enemies[1].vis"), true);
   assert.equal(run("enemies[2].vis"), false);
   assert.equal(run("calls.length"), 2);
+});
+
+test("la vibracion desplaza la escena pero no el HUD", () => {
+  const run = setup();
+  run(`wallShake = 6; drawHud = () => transforms.push("hud"); render()`);
+  assert.equal(run("JSON.stringify(transforms)"), '["save",[1,0],"restore","hud"]');
+  run("transforms.length = 0; wallShake = 5; render()");
+  assert.equal(run("JSON.stringify(transforms)"), '["save",[-1,0],"restore","hud"]');
+  run("transforms.length = 0; wallShake = 0; render()");
+  assert.equal(run("JSON.stringify(transforms)"), '["save",[0,0],"restore","hud"]');
 });

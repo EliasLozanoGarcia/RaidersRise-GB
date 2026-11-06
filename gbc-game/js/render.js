@@ -300,10 +300,17 @@ function render() {
     return;
   }
 
-  const firstTileX = Math.max(0, cam.x >> 3);
-  const lastTileX = Math.min(MAP_W - 1, (cam.x + GBC_W - 1) >> 3);
+  const shakeX = wallShake > 0 ? (wallShake & 1 ? -1 : 1) : 0;
+  const firstTileX = Math.max(0, (cam.x - shakeX) >> 3);
+  const lastTileX = Math.min(MAP_W - 1, (cam.x + GBC_W - 1 - shakeX) >> 3);
   const firstTileY = Math.max(0, cam.y >> 3);
   const lastTileY = Math.min(MAP_H - 1, (cam.y + VIEW_H - 1) >> 3);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, GBC_W, VIEW_H);
+  ctx.clip();
+  ctx.translate(shakeX, 0);
 
   const spCells = new Set();
   for (const p of players) {
@@ -432,7 +439,7 @@ function render() {
     const live = players.filter((p) => p.active && p.hp > 0);
     const cand = [];
     for (const e of enemies) {
-      const px = (e.x >> 8) - cam.x, py = enemySpriteY(e);
+      const px = (e.x >> 8) - cam.x + shakeX, py = enemySpriteY(e);
       e.vis = false;
       if (px + e.size <= 0 || px >= GBC_W || py + e.size <= 0 || py >= VIEW_H) { e.hid = 0; continue; }
       let d = Infinity;
@@ -472,6 +479,7 @@ function render() {
     ctx.drawImage(e.hit > 0 ? hitImages[e.sprite] || img : img, sprite.sx, sprite.sy, e.size, e.size,
       (e.x >> 8) - cam.x, y, e.size, e.size);
   }
+  ctx.restore();
   drawHud(ctx);
   if (gameOver) drawGameOver(ctx);
   if (shop) drawShop(ctx);

@@ -30,6 +30,10 @@ empuje si no hay una colision que lo impida. El personaje muestra la animación
 de empuje al presionar contra cofres o puertas.
 Si hay varios cofres al alcance, cada jugador empuja solo el más cercano.
 
+Al bajar un muro, la zona de juego vibra un pixel horizontalmente en cada fase;
+el HUD permanece fijo. El efecto es trasladable a Game Boy con scroll del fondo
+y desplazamiento equivalente de los sprites, manteniendo el HUD en la ventana.
+
 Pulsa `P` para pausar. Se admiten dos
 mandos; el primero controla J1 y el segundo J2.
 

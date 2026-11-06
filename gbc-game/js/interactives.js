@@ -26,6 +26,7 @@ let crystals = [];
 let doors = [];
 let buttons = [];
 let lowerWalls = [];
+let wallShake = 0;
 
 // Constantes de Muros y Botones
 const WALL_STAGES = [
@@ -34,6 +35,7 @@ const WALL_STAGES = [
   { top: [78, 79], bottom: [110, 111] },
 ];
 const WALL_STAGE_FRAMES = 12;
+const WALL_SHAKE_FRAMES = 6;
 const BTN_TILES = { top: 82, bottom: 114, topOff: 83, bottomOff: 115 };
 
 function applyWallStage(w, g) {
@@ -80,6 +82,7 @@ function cullItems() {
 
 function initInteractives() {
   cullItems();
+  wallShake = 0;
   spikes = [];
   doors = [];
   buttons = [];
@@ -276,6 +279,7 @@ function openCoinChest(chest, player) {
 }
 
 function updateInteractives() {
+  if (wallShake > 0) wallShake--;
   for (const p of players) { p.pushing = false; p.pushAnim = null; p.pushDoorCells = null; }
 
   for (const b of luckyBoxes) if (b.hit > 0) b.hit--;
@@ -483,6 +487,7 @@ function updateButtonsAndWalls() {
     if (!w.started) { w.started = true; sfx("open"); }
     w.shown++;
     applyWallStage(w, w.shown);
+    wallShake = WALL_SHAKE_FRAMES;
     w.timer = WALL_STAGE_FRAMES;
   }
   if (lowerWalls.every((w) => w.shown >= WALL_STAGES.length)) {
