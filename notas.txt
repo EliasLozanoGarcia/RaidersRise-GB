@@ -1,9 +1,24 @@
-Las balas de Kurt han de pasar por las colisiones medias, ahora chocan con ellas como si fueran totales.
-La puerta abierta solo se ha de poder empujar desde la izquierda
-Crear Spawn Areas custom para Slugs, Big Slugs, Bees, Big Bees, etc... con algun para metro de cantidad, Manten el Spawn tal coimo esta ahora para spam totalmente aleatorio de todo.
-Al empujar puerta y aplicar el ofset a la puerta, mover el personaje un pixel en la direccion del empuje para acompañar el movimiento.
+Crear Spawn Areas custom para Slugs, Big Slugs, Bees, Big Bees, etc... con algun parametro de cantidad, 
+Manten el Spawn tal coimo esta ahora para spam totalmente aleatorio de todo.
 
-Los sprityes enemigos no se ordenan bien, los que estan mas arriva han de pintarse por detras
+Hacer tiles para las explosiones.
 
+Mejorar dash de Kurt, los sprites.
 
+Hacer sprites de Atabusk
+
+Mejorar menus:
+-Iconos de las abilidades, tipo cartas
+-Diseño del profile de cada raider.
+-Mejorar avatares.
+-Imagen del personaje de media pantalla para el profile, con pose chula.
+-Result Screen
+
+Diseño:
+-REsolver las abilidades, lo del select no funciona bien, probar: 
+ 1.usar el select para cambiar entre dash y ultimate.
+ 2.doble tap en la direccion para hacer el dash (las diagoneles son complicadas) y la B para la Ultimate.
+-Pasivas
+ 1.Granada se lanza cada X tiempo.
+ 2.Invulneravilidad al quedarte con 1 corazon.
 
