@@ -200,6 +200,7 @@ async function start() {
   allLevels = assets.levels;
   initText();
   initComposites();
+  initEnemyFrameBottoms();
   hitImages.tileset = makeHitImage(assets.tilesetImage);
   for (const [key, brighten] of Object.entries(HIT_SPRITES)) hitImages[key] = makeHitImage(assets[key], brighten);
   gbc.ctx.imageSmoothingEnabled = false;

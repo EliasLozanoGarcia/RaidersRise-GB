@@ -242,6 +242,50 @@ function drawHud(ctx) {
   }
 }
 
+function enemySpriteY(e) {
+  const offset = e.type === "slime" ? 1 : e.type === "bigSlime" ? 2 : 0;
+  return (e.y >> 8) - cam.y - offset;
+}
+
+const enemyFrameBottoms = new Map();
+
+function initEnemyFrameBottoms() {
+  enemyFrameBottoms.clear();
+  for (const type of Object.values(CFG.enemyTypes)) {
+    const img = assets[type.sprite];
+    if (!img) throw new Error(`Falta la imagen del enemigo ${type.sprite}`);
+    const cv = document.createElement("canvas");
+    cv.width = img.width;
+    cv.height = img.height;
+    const ctx = cv.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+    const pixels = ctx.getImageData(0, 0, cv.width, cv.height).data;
+    const size = type.size, bottoms = new Map();
+    for (let sy = 0; sy + size <= cv.height; sy += size) {
+      for (let sx = 0; sx + size <= cv.width; sx += size) {
+        let bottom = -1;
+        for (let y = size - 1; y >= 0 && bottom < 0; y--) {
+          for (let x = 0; x < size; x++) {
+            if (pixels[((sy + y) * cv.width + sx + x) * 4 + 3] !== 0) { bottom = y; break; }
+          }
+        }
+        bottoms.set(`${sx},${sy}`, bottom);
+      }
+    }
+    enemyFrameBottoms.set(`${type.sprite}:${size}`, bottoms);
+  }
+}
+
+function enemySpriteFrame(e) {
+  const frameIndex = e.moving ? ((e.animT / CFG.enemyAnimFrames) | 0) & 1 : 0;
+  const sx = e.sheet === "flap" ? (((frame >> 1) + (e.id || 0)) & 1) * 8 : e.dir * e.size;
+  const sy = e.sheet === "flap" ? 0 : frameIndex * e.size;
+  const bottoms = enemyFrameBottoms.get(`${e.sprite}:${e.size}`);
+  const bottom = bottoms && bottoms.get(`${sx},${sy}`);
+  if (bottom === undefined) throw new Error(`Fotograma enemigo no valido: ${e.sprite} (${sx}, ${sy})`);
+  return { sx, sy, bottom };
+}
+
 // ------------------------------------------------------------ Renderizado a color original
 function render() {
   const ctx = gbc.ctx;
@@ -388,7 +432,7 @@ function render() {
     const live = players.filter((p) => p.active && p.hp > 0);
     const cand = [];
     for (const e of enemies) {
-      const px = (e.x >> 8) - cam.x, py = (e.y >> 8) - cam.y;
+      const px = (e.x >> 8) - cam.x, py = enemySpriteY(e);
       e.vis = false;
       if (px + e.size <= 0 || px >= GBC_W || py + e.size <= 0 || py >= VIEW_H) { e.hid = 0; continue; }
       let d = Infinity;
@@ -401,7 +445,7 @@ function render() {
     const lineCount = new Map();
     let spriteCount = 0;
     for (const e of cand) {
-      const py = (e.y >> 8) - cam.y;
+      const py = enemySpriteY(e);
       const cells = e.size >> 3;
       let ok = spriteCount + cells * cells <= CFG.maxSprites;
       for (let r = 0; r < cells && ok; r++) ok = (lineCount.get((py >> 3) + r) || 0) + cells <= CFG.maxSpritesPerLine;
@@ -415,14 +459,18 @@ function render() {
       }
     }
   }
+  const visibleEnemies = [];
   for (const e of enemies) {
     if (!e.vis) continue;
-    const px = (e.x >> 8) - cam.x, py = (e.y >> 8) - cam.y;
-    const frameIndex = e.moving ? ((e.animT / CFG.enemyAnimFrames) | 0) & 1 : 0;
+    const sprite = enemySpriteFrame(e);
+    if (sprite.bottom < 0) continue;
+    visibleEnemies.push({ e, sprite, y: enemySpriteY(e) });
+  }
+  visibleEnemies.sort((a, b) => a.y + a.sprite.bottom - b.y - b.sprite.bottom);
+  for (const { e, sprite, y } of visibleEnemies) {
     const img = assets[e.sprite];
-    const src = e.sheet === "flap" ? img && [(((frame >> 1) + (e.id || 0)) & 1) * 8, 0] : [e.dir * e.size, frameIndex * e.size];
-    const sw = e.sheet === "flap" ? 8 : e.size;
-    ctx.drawImage(e.hit > 0 ? hitImages[e.sprite] || img : img, src[0], src[1], sw, sw, px, py, e.size, e.size);
+    ctx.drawImage(e.hit > 0 ? hitImages[e.sprite] || img : img, sprite.sx, sprite.sy, e.size, e.size,
+      (e.x >> 8) - cam.x, y, e.size, e.size);
   }
   drawHud(ctx);
   if (gameOver) drawGameOver(ctx);
