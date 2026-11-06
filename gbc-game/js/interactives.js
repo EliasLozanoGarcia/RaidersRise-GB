@@ -505,10 +505,24 @@ function findDropCell(tx, ty) {
   return -1;
 }
 
-function bulletHitsItems(bx, by, gy, pad) {
+function bulletHitsItems(b, bx, by, gy, pad) {
   for (const y of [gy, by]) {
-    if (checkBulletHitItems(bx, y)) return true;
-    if (pad && (checkBulletHitItems(bx - pad, y) || checkBulletHitItems(bx + pad, y))) return true;
+    for (const x of pad ? [bx, bx - pad, bx + pad] : [bx]) {
+      const tx = x >> 3, ty = y >> 3;
+      if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) continue;
+      const idx = ty * MAP_W + tx, tile = itemsLayer[idx];
+      if (getTileCollision(tile) === 1) {
+        if (tile >= BARRIER_FIRST && tile <= BARRIER_LAST) {
+          if (!b.hitBarriers) b.hitBarriers = new Set();
+          if (!b.hitBarriers.has(idx)) {
+            b.hitBarriers.add(idx);
+            checkBulletHitItems(x, y);
+          }
+        }
+        continue;
+      }
+      if (checkBulletHitItems(x, y)) return true;
+    }
   }
   return false;
 }

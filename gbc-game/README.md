@@ -44,7 +44,9 @@ personaje (Izq/Der elegir, A confirmar, B cancelar; J2 se une pulsando A):
   especial: proyectil que atraviesa y destruye todo (SELECT con la barra llena).
 
 Las balas detonan al acercarse a un enemigo y dañan a otros dentro del radio de
-la explosión. Empujar un cofre durante 1,5 segundos suma cinco monedas al
+la explosión. Las balas y las abejas atraviesan los tiles de colisión media,
+pero no los sólidos; los personajes y enemigos terrestres no pueden atravesar
+ninguno de los dos. Empujar un cofre durante 1,5 segundos suma cinco monedas al
 inventario y deja monedas recogibles sobre el cofre y en celdas transitables
 cercanas. Los enemigos derrotados también pueden soltar monedas: camina sobre
 ellas para recogerlas; el total aparece en el HUD. Los enemigos varían

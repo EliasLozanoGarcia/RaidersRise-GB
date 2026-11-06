@@ -179,7 +179,7 @@ function updateBullets() {
     // Lo destruible (barreras, cajas) se golpea tambien en la posicion VISUAL (by) y con margen lateral:
     // si la bala se ve encima, hace dano.
     const gy = by + CFG.bulletGroundOffset;
-    if (bulletHitsItems(bx, by, gy, pad) || bulletBlocked(b, bx, gy)) {
+    if (bulletHitsItems(b, bx, by, gy, pad) || bulletBlocked(b, bx, gy)) {
       b.linger = CFG.bulletLinger; // en vez de morir al instante, se queda un poco mas
     }
   }
