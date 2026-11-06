@@ -50,6 +50,15 @@ ellas para recogerlas; el total aparece en el HUD. Los enemigos varían
 ligeramente su velocidad, vagan cuando están lejos y evitan amontonarse. J2
 aparece junto a J1 cuando se une.
 
+Las antiguas cajas de mana son **lucky blocks**: tras tres impactos sueltan
+al azar, con la misma probabilidad, un corazon (+1 vida hasta el maximo), una
+moneda, mana (+10 % de la barra), un cristal, un escudo, una llave o una
+granada. El escudo protege de enemigos, pinchos y especiales durante 5 segundos;
+recoger otro reinicia su duracion. Las llaves y granadas se acumulan pero aun no
+tienen efecto. Cada jugador tiene su propio inventario, visible en el HUD;
+monedas, cristales, llaves y granadas se conservan al avanzar de nivel.
+Los numeros de Tiled 147-153 corresponden a los IDs internos 146-152.
+
 ## Archivos activos
 
 - `index.html` carga el motor, los controles, `js/loader_dmg.js` y `js/game.js`.
@@ -67,7 +76,7 @@ aparece junto a J1 cuando se une.
 - Los textos usan `assets/font_8x8.png` (ancho proporcional): se componen en un
   buffer propio de 32 tiles sueltos (ids 74-92 y 106-118) y se pintan como tiles.
 - Tiles compuestos: los items con transparencia (detectados por alfa en el tileset),
-  las monedas (25) y las alertas (93 cofre, 126/127 cristal) se dibujan como un tile
+  las monedas (147, ID interno) y las alertas (93 cofre, 126/127 cristal) se dibujan como un tile
   buffer (suelo + item) de un pool de 96 huecos (ids 160-255, filas 6-8), que se libera al desaparecer el item.
   Las monedas caen (1 px mas arriba durante 0,1 s) y salen escalonadas en grupos de 1-3.
   Al empujar un cofre o cristal, sus tiles superiores se cambian por la alerta.

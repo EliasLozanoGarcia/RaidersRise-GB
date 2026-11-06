@@ -1,9 +1,9 @@
 "use strict";
-/* Objetos interactivos: pinchos, cofres, cristales, puertas, cajas de mana. */
+/* Objetos interactivos: pinchos, cofres, cristales, puertas y lucky blocks. */
 
 // ------------------------------------------------------------ Declaraciones Globales
 let spikes = [];
-let manaBoxes = [];
+let luckyBoxes = [];
 const BARRIER_FIRST = 19, BARRIER_LAST = 24; // ids de las barreras destruibles
 
 // Variables globales blindadas para evitar ReferenceErrors en otros scripts
@@ -46,7 +46,7 @@ function applyWallStage(w, g) {
 
 // Las posiciones de la capa Items son candidatas: al cargar se eligen al azar solo algunas.
 function cullItems() {
-  const groups = { crystal: [], chest: [], mana: [] };
+  const groups = { crystal: [], chest: [], lucky: [] };
   const at = (i) => itemsLayer[i];
   const usedChest = new Set();
   
@@ -56,7 +56,7 @@ function cullItems() {
       const t = at(i);
       
       if (t === 27 && at(i + 1) === 28 && at(i + MAP_W) === 59 && at(i + MAP_W + 1) === 60) {
-        groups.mana.push([i, i + 1, i + MAP_W, i + MAP_W + 1]);
+        groups.lucky.push([i, i + 1, i + MAP_W, i + MAP_W + 1]);
       } else if (!usedChest.has(i) && t === 29 && at(i + 1) === 29 && at(i + MAP_W) === 61 && at(i + MAP_W + 1) === 61) {
         usedChest.add(i);
         usedChest.add(i + 1);
@@ -67,7 +67,7 @@ function cullItems() {
       }
     }
   }
-  const keep = { crystal: CFG.crystalCount, chest: CFG.chestCount, mana: CFG.manaBoxCount };
+  const keep = { crystal: CFG.crystalCount, chest: CFG.chestCount, lucky: CFG.luckyBoxCount };
   for (const kind of Object.keys(groups)) {
     const list = groups[kind];
     for (let i = list.length - 1; i > 0; i--) {
@@ -84,7 +84,7 @@ function initInteractives() {
   doors = [];
   buttons = [];
   lowerWalls = [];
-  manaBoxes = [];
+  luckyBoxes = [];
   coinChests = [];
   crystals = [];
   tileOffY.clear();
@@ -101,9 +101,9 @@ function initInteractives() {
         const st = (t === 16 || ft === 16) ? 1 : (t === 15 || ft === 15) ? 2 : 0;
         spikes.push({ tx, ty, t: 0, state: st });
       }
-      // Caja de mana
+      // Lucky block
       else if (t === 27 && tx + 1 < MAP_W && ty + 1 < MAP_H) {
-        manaBoxes.push({ tx, ty, hp: 3, alive: true });
+        luckyBoxes.push({ tx, ty, hp: 3, alive: true });
       }
       // Cofre de monedas (permite adyacentes validando que no sea el lado derecho de otro)
       else if (
@@ -269,7 +269,7 @@ function openCoinChest(chest, player) {
 function updateInteractives() {
   for (const p of players) { p.pushing = false; p.pushAnim = null; }
 
-  for (const b of manaBoxes) if (b.hit > 0) b.hit--;
+  for (const b of luckyBoxes) if (b.hit > 0) b.hit--;
   for (const [k, v] of barrierHit) { if (v <= 1) barrierHit.delete(k); else barrierHit.set(k, v - 1); }
 
   // A) PINCHOS
@@ -283,7 +283,7 @@ function updateInteractives() {
     } else if (s.state === 1) {
       const sBox = { x: s.tx * 8, y: s.ty * 8, w: 8, h: 8 };
       for (const p of players) {
-        if (p.active && p.hp > 0 && !p.tp && p.inv === 0 &&
+        if (p.active && p.hp > 0 && !p.tp && p.inv === 0 && p.shield === 0 &&
             overlap(p.x >> 8, p.y >> 8, PBOX, 0, 0, sBox)) {
           p.hp--;
           sfx("hurt");
@@ -483,7 +483,10 @@ function findDropCell(tx, ty) {
     }
     if (best >= 0) return best;
   }
-  return ty * MAP_W + tx;
+  for (let y = 0; y < MAP_H; y++) {
+    for (let x = 0; x < MAP_W; x++) if (free(x, y)) return y * MAP_W + x;
+  }
+  return -1;
 }
 
 function bulletHitsItems(bx, by, gy, pad) {
@@ -530,7 +533,7 @@ function checkBulletHitItems(bx, by) {
     return true;
   }
 
-  for (const b of manaBoxes) {
+  for (const b of luckyBoxes) {
     if (!b.alive) continue;
     if (tx >= b.tx && tx <= b.tx + 1 && ty >= b.ty && ty <= b.ty + 1) {
       b.hp--;
@@ -543,7 +546,9 @@ function checkBulletHitItems(bx, by) {
             setItemTile(i, -1);
           }
         }
-        setItemTile(findDropCell(b.tx, b.ty), 26);
+        const drop = findDropCell(b.tx, b.ty);
+        if (drop >= 0) setItemTile(drop, LUCKY_DROPS[rnd(LUCKY_DROPS.length)]);
+        else console.warn("No hay una celda libre para el premio del lucky block.", b.tx, b.ty);
       }
       return true;
     }

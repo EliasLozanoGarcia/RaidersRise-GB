@@ -78,7 +78,8 @@ window.DMGLoader = (function () {
         fontImage,
         portraitsImage,
         shotSmallImage,
-        shotBigImage
+        shotBigImage,
+        kurtDashImage
       ] = await Promise.all([
         loadImage("assets/tileset_GBC_Urban.png"),
         loadImage("assets/Kathy_Sprites.png"),
@@ -92,12 +93,13 @@ window.DMGLoader = (function () {
         loadImage("assets/enemies_run.png"),
         loadImage("assets/enemies_Bee.png"),
         loadImage("assets/enemies_Slug_Big.png"),
-       // loadImage("assets/Teleport_GBC.png"),
+        loadImage("assets/Teleport_GBC.png"),
         loadImage("assets/font_8x8.png"),
         loadImage("assets/portraits.png"),
         // Sprites de disparo: si faltan, el juego dibuja las balas como cuadrados (no es fatal).
         loadImage("assets/disparo_Small.png").catch(() => null), // Kurt
-        loadImage("assets/disparo_Big.png").catch(() => null)    // Kathy
+        loadImage("assets/disparo_Big.png").catch(() => null),   // Kathy
+        loadImage("assets/Kurt-Dash_Sprite.png").catch((err) => { console.warn(err.message); return null; })
       ]);
 
       // Carga correlativa de todos los niveles Level1-1, Level1-2, Level1-3... que haya en maps/
@@ -161,6 +163,7 @@ window.DMGLoader = (function () {
         portraitsImage,
         shotSmallImage,
         shotBigImage,
+        kurtDashImage,
         levels
       };
     }

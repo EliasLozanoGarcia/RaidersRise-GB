@@ -3,7 +3,7 @@
 
 function newPlayer(i, x, y) {
   const ch = CHARS[chars[i]];
-  const p = { id: i, ch, x: x << 8, y: y << 8, facing: 7, hp: 0, coins: 0, crystals: 0, cd: 0, ammo: 0, reloadT: 0, mana: CFG.specialCharge, sp: null,
+  const p = { id: i, ch, x: x << 8, y: y << 8, facing: 7, hp: 0, coins: 0, crystals: 0, keys: 0, grenades: 0, shield: 0, cd: 0, ammo: 0, reloadT: 0, mana: CFG.specialCharge, sp: null,
              inv: 0, animT: 0, row: 0, active: i === 0, hit: 0, tpCooldown: 0, slash: 0,
              pushing: false, pushFacing: 7, pushAnimT: 0 };
   p.hp = maxHp(p);
@@ -442,19 +442,25 @@ function updatePlayer(p) {
     for (let tx = left; tx <= right; tx++) {
       const idx = ty * MAP_W + tx;
 
-      if (itemsLayer[idx] === 26) {
-        setItemTile(idx, -1);
-        p.hp = Math.min(maxHp(p), p.hp + 1);
-        sfx("heart");
-      } else if (itemsLayer[idx] === 25 && !coinWaiting(idx)) {
-        setItemTile(idx, -1);
-        p.coins++;
-        sfx("coin");
-      }
+      collectPickup(p, idx);
     }
   }
 
   if (p.inv > 0) p.inv--;
+}
+
+function collectPickup(p, idx) {
+  const item = itemsLayer[idx];
+  if (!LUCKY_DROPS.includes(item) || (item === PICKUP.coin && coinWaiting(idx))) return;
+  setItemTile(idx, -1);
+  if (item === PICKUP.heart) p.hp = Math.min(maxHp(p), p.hp + 1);
+  else if (item === PICKUP.coin) p.coins++;
+  else if (item === PICKUP.mana) p.mana = Math.min(CFG.specialCharge, p.mana + Math.ceil(CFG.specialCharge / 10));
+  else if (item === PICKUP.crystal) p.crystals++;
+  else if (item === PICKUP.shield) p.shield = CFG.shieldFrames;
+  else if (item === PICKUP.key) p.keys++;
+  else if (item === PICKUP.grenade) p.grenades++;
+  sfx(item === PICKUP.heart ? "heart" : "coin");
 }
 
 function specialRect(sp) {
@@ -471,7 +477,7 @@ function specialHit(p, sp, mult, hurtPlayers) {
   }
   if (!hurtPlayers) return;
   for (const q of players) {
-    if (q.active && q.hp > 0 && !q.tp && overlap(q.x >> 8, q.y >> 8, PBOX, 0, 0, r)) {
+    if (q.active && q.hp > 0 && !q.tp && q.shield === 0 && overlap(q.x >> 8, q.y >> 8, PBOX, 0, 0, r)) {
       q.hp -= specialDamage();
       q.hit = CFG.hurtFlash;
     }
@@ -535,6 +541,7 @@ function continueGame() {
     p.hp = maxHp(p);
     [p.x, p.y] = startPos(i).map((v) => v << 8);
     p.inv = invulnFrames();
+    p.shield = 0;
     p.hit = 0;
     p.tp = null;
     p.ammo = ammoMax(p);
