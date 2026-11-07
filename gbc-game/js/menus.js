@@ -4,7 +4,10 @@
 // ------------------------------------------------------------ Pantallas: splash y seleccion de personaje
 let screen = "splash";
 let menuSel = 0, rosterSel = 0, setSel = 0;
+let multiplayer = false, aboutPage = 0;
 const pick = { cur: [0, 1], ready: [false, false], joined: [true, false] };
+const SPLASH_OPTIONS = ["Single Player", "Multiplayer", "Raiders", "About"];
+const ABOUT_TEXT = "Raiders Rise ©2026 Penguin Armada S.L. Raiders Rise and the Raiders Rise logo are trademarks and/or registered trademarks of Penguin Armada S.L. Penguin Armada and the Penguin Armada logo are trademarks and/or registered trademarks of Penguin Armada S.L.";
 const STAT_BARS = [
   { label: "spd", key: "spd" },
   { label: "hp", key: "hp" },
@@ -14,24 +17,31 @@ const STAT_BARS = [
 const TXT = {
   es: { choose: "Elige personaje", pressA: "A elegir", ready: "Listo", spd: "Vel", hp: "Vida", dmg: "Dano", weapon: "Arma", special: "Especial",
     raiders: "Raiders", settings: "Ajustes", language: "Idioma", langName: "Espanol", sound: "Sonido", music: "Musica", sfx: "Efectos", back: "Volver",
-    hintSplash: "Izq/Der elegir, F aceptar", hintSelect: "Izq/Der elegir, F confirmar, G cancelar; J2: pulsa , para unirte",
+    hintSplash: "Arriba/Abajo elegir, F aceptar", hintSelectSingle: "Izq/Der elegir, F confirmar, G cancelar", hintSelectMulti: "Izq/Der elegir, F confirmar, G cancelar; J2: flechas y ,",
+    hintAbout: "Izq/Der cambiar pagina, G volver",
     hintRaiders: "Izq/Der elegir, F ver ficha, G volver", hintSheet: "Izq/Der cambiar personaje, G volver", hintSettings: "Arriba/Abajo elegir, Izq/Der cambiar, G volver" },
   en: { choose: "Choose character", pressA: "A choose", ready: "Ready", spd: "Speed", hp: "HP", dmg: "Damage", weapon: "Weapon", special: "Special",
     raiders: "Raiders", settings: "Settings", language: "Language", langName: "English", sound: "Sound", music: "Music", sfx: "Effects", back: "Back",
-    hintSplash: "Left/Right choose, F accept", hintSelect: "Left/Right choose, F confirm, G cancel; P2: press , to join",
+    hintSplash: "Up/Down choose, F accept", hintSelectSingle: "Left/Right choose, F confirm, G cancel", hintSelectMulti: "Left/Right choose, F confirm, G cancel; P2: arrows and ,",
+    hintAbout: "Left/Right change page, G back",
     hintRaiders: "Left/Right choose, F details, G back", hintSheet: "Left/Right change character, G back", hintSettings: "Up/Down choose, Left/Right change, G back" },
 };
 const tr = (k) => TXT[settings.lang ? "en" : "es"][k];
 const charName = (i) => CHARS[i].name[0] + CHARS[i].name.slice(1).toLowerCase();
+const ROSTER_PORTRAITS = [
+  { x: 11, y: 9, profile: true }, { x: 68, y: 25 }, { x: 108, y: 25 },
+  { x: 27, y: 73, name: "Baba" }, { x: 67, y: 73, name: "Maya" }, { x: 107, y: 73, name: "Korin" },
+];
 
 function openSelect() {
   screen = "select";
   pick.ready = [false, false];
-  pick.joined = [true, false];
+  pick.joined = [true, multiplayer];
   pick.cur = [chars[0], chars[1]];
 }
 function openRaiders() { screen = "raiders"; }
 function openSettings() { screen = "settings"; setSel = 0; }
+function openAbout() { screen = "about"; aboutPage = 0; }
 
 function updateMenu() {
   rand16(); // la semilla depende del momento en que el jugador pulsa
@@ -41,8 +51,19 @@ function updateMenu() {
   const dx = (any & BTN.RIGHT ? 1 : 0) - (any & BTN.LEFT ? 1 : 0);
   const dy = (any & BTN.DOWN ? 1 : 0) - (any & BTN.UP ? 1 : 0);
   if (screen === "splash") {
-    if (dx) { menuSel = (menuSel + 3 + dx) % 3; sfx("hit"); }
-    if (ok) { sfx("coin"); [openSelect, openRaiders, openSettings][menuSel](); }
+    if (dy) { menuSel = (menuSel + SPLASH_OPTIONS.length + dy) % SPLASH_OPTIONS.length; sfx("hit"); }
+    if (ok) {
+      sfx("coin");
+      if (menuSel < 2) { multiplayer = menuSel === 1; openSelect(); }
+      else if (menuSel === 2) openRaiders();
+      else openAbout();
+    }
+    return;
+  }
+  if (screen === "about") {
+    const pages = Math.ceil(wrapText(ABOUT_TEXT, 144).length / 13) + 1;
+    if (dx) { aboutPage = (aboutPage + pages + dx) % pages; sfx("hit"); }
+    if (back) screen = "splash";
     return;
   }
   if (screen === "raiders" || screen === "sheet") {
@@ -65,11 +86,8 @@ function updateMenu() {
   }
   const pressedBy = [pr0, pr1];
   for (let i = 0; i < 2; i++) {
+    if (i === 1 && !multiplayer) continue;
     const pr = pressedBy[i];
-    if (!pick.joined[i]) {
-      if (pr & (BTN.A | BTN.START | BTN.LEFT | BTN.RIGHT)) { pick.joined[i] = true; sfx("coin"); }
-      continue;
-    }
     if (!pick.ready[i]) {
       const n = CHARS.length;
       if (pr & BTN.LEFT) { pick.cur[i] = (pick.cur[i] + n - 1) % n; sfx("hit"); }
@@ -78,9 +96,6 @@ function updateMenu() {
       else if (i === 0 && (pr & BTN.B)) screen = "splash";
     } else if (pr & BTN.B) {
       pick.ready[i] = false;
-    } else if (i === 1 && (pr & BTN.SELECT)) {
-      pick.joined[1] = false;
-      pick.ready[1] = false;
     }
   }
   if (pick.ready[0] && (!pick.joined[1] || pick.ready[1])) {
@@ -99,22 +114,43 @@ function drawSplash(ctx) {
     const t = m.tiles[i];
     ctx.drawImage(assets.splashTiles, (t % m.cols) * 8, ((t / m.cols) | 0) * 8, 8, 8, (i % m.w) * 8, ((i / m.w) | 0) * 8, 8, 8);
   }
-  ["Play", "Raiders", "Settings"].forEach((label, i) => {
-    const cx = 27 + i * 53;
+  SPLASH_OPTIONS.forEach((label, i) => {
+    const cx = GBC_W >> 1, y = 100 + i * 9;
+    const left = cx - (textWidth(label) >> 1), right = left + textWidth(label);
     const sel = i === menuSel;
-    ctx.globalAlpha = sel ? 1 : 0.55;
-    drawTextCentered(ctx, label, 106, cx);
+    if (sel) {
+      ctx.fillStyle = "#2a4e19";
+      ctx.fillRect(left - 3, y, right - left + 6, 8);
+    }
+    ctx.globalAlpha = sel ? 1 : 0.7;
+    drawTextCentered(ctx, label, y, cx);
     ctx.globalAlpha = 1;
-    if (sel && ((frame >> 4) & 1) === 0) {
+    if (sel) {
+      const offset = Math.floor(frame / 30) % 2;
       ctx.fillStyle = "#7a953a";
-      ctx.fillRect(cx - 2, 100, 5, 1);
-      ctx.fillRect(cx - 1, 101, 3, 1);
-      ctx.fillRect(cx, 102, 1, 1);
-      ctx.fillRect(cx - 2, 118, 5, 1);
-      ctx.fillRect(cx - 1, 117, 3, 1);
-      ctx.fillRect(cx, 116, 1, 1);
+      ctx.fillRect(left - 8 - offset, y + 1, 1, 5);
+      ctx.fillRect(left - 7 - offset, y + 2, 1, 3);
+      ctx.fillRect(left - 6 - offset, y + 3, 1, 1);
+      ctx.fillRect(right + 7 + offset, y + 1, 1, 5);
+      ctx.fillRect(right + 6 + offset, y + 2, 1, 3);
+      ctx.fillRect(right + 5 + offset, y + 3, 1, 1);
     }
   });
+}
+
+function drawAbout(ctx) {
+  drawBackdrop(ctx);
+  drawTextCentered(ctx, "About", 6);
+  const lines = wrapText(ABOUT_TEXT, 144);
+  const textPages = Math.ceil(lines.length / 13);
+  if (aboutPage < textPages) {
+    lines.slice(aboutPage * 13, (aboutPage + 1) * 13).forEach((line, i) => drawText(ctx, line, 8, 20 + i * 8));
+  } else {
+    drawTextCentered(ctx, "A retro action game", 18);
+    drawTextCentered(ctx, "Play on mobile", 27);
+    ctx.drawImage(assets.qrImage, 35, 40, 90, 90);
+  }
+  drawTextCentered(ctx, `${aboutPage + 1}/${textPages + 1}`, 134);
 }
 
 function drawBackdrop(ctx) {
@@ -129,53 +165,67 @@ function drawBars(ctx, x, y, n, total = 5, w = 7, gap = 1) {
   }
 }
 
-function drawPortraitFrame(ctx, i, bx, by, framed) {
-  ctx.fillStyle = framed ? "#7a953a" : "#55742a";
-  ctx.fillRect(bx, by, 44, 38);
+function drawRaiderPortrait(ctx, i, x, y) {
+  const portrait = ROSTER_PORTRAITS[i];
+  ctx.drawImage(portrait.profile ? assets.profileImage : assets.selectionImage, portrait.x, portrait.y, 30, 30, x, y, 30, 30);
+}
+
+function drawRosterBackground(ctx) {
   ctx.fillStyle = "#2a4e19";
-  ctx.fillRect(bx + 2, by + 2, 40, 34);
-  ctx.drawImage(assets.portraitsImage, i * 30, 0, 30, 30, bx + 7, by + 4, 30, 30);
+  ctx.fillRect(0, 0, GBC_W, GBC_H);
+  ctx.drawImage(assets.selectionImage, 0, 0, 160, 20, 0, 0, 160, 20);
+  ctx.drawImage(assets.selectionImage, 0, 128, 160, 16, 0, 128, 160, 16);
+}
+
+function drawRosterCard(ctx, i, selected) {
+  const x = 25 + (i % 3) * 40, y = 24 + Math.floor(i / 3) * 48;
+  const locked = i >= CHARS.length;
+  if (selected) {
+    ctx.fillStyle = "#7a953a";
+    ctx.fillRect(x - 1, y - 1, 34, 42);
+  }
+  ctx.fillStyle = "#0f380f";
+  ctx.fillRect(x, y, 32, 40);
+  drawRaiderPortrait(ctx, i, x + 1, y);
+  ctx.globalAlpha = locked ? 0.6 : 1;
+  drawTextCentered(ctx, locked ? ROSTER_PORTRAITS[i].name : charName(i), y + 31, x + 16);
+  ctx.globalAlpha = 1;
+  if (locked) {
+    ctx.fillStyle = "#0f380f";
+    ctx.fillRect(x + 24, y + 23, 8, 8);
+    ctx.fillStyle = "#7a953a";
+    ctx.fillRect(x + 26, y + 24, 4, 1);
+    ctx.fillRect(x + 25, y + 25, 1, 2);
+    ctx.fillRect(x + 30, y + 25, 1, 2);
+    ctx.fillRect(x + 25, y + 27, 6, 4);
+  }
 }
 
 function drawRoster(ctx) {
-  drawBackdrop(ctx);
-  drawTextCentered(ctx, tr("raiders"), 8);
-  CHARS.forEach((c, i) => {
-    const bx = 8 + i * 52;
-    drawPortraitFrame(ctx, i, bx, 40, i === rosterSel);
-    ctx.globalAlpha = i === rosterSel ? 1 : 0.55;
-    drawTextCentered(ctx, charName(i), 82, bx + 22);
-    ctx.globalAlpha = 1;
-    if (i === rosterSel && ((frame >> 4) & 1) === 0) {
-      ctx.fillStyle = "#7a953a";
-      ctx.fillRect(bx + 19, 94, 5, 1);
-      ctx.fillRect(bx + 20, 93, 3, 1);
-      ctx.fillRect(bx + 21, 92, 1, 1);
-    }
-  });
+  drawRosterBackground(ctx);
+  ROSTER_PORTRAITS.forEach((portrait, i) => drawRosterCard(ctx, i, i === rosterSel));
 }
 
 function drawSheet(ctx) {
-  drawBackdrop(ctx);
-  const i = rosterSel, ui = CHARS[i].ui, info = CHARS[i].info[settings.lang ? "en" : "es"];
-  ctx.fillStyle = "#7a953a";
-  ctx.fillRect(6, 6, 64, 64);
+  ctx.drawImage(assets.profileImage, 0, 0);
   ctx.fillStyle = "#2a4e19";
-  ctx.fillRect(8, 8, 60, 60);
-  ctx.drawImage(assets.portraitsImage, i * 30, 0, 30, 30, 8, 8, 60, 60);
-  drawText(ctx, charName(i), 78, 8);
+  ctx.fillRect(28, 0, 124, 144);
+  ctx.fillRect(8, 8, 39, 31);
+  const i = rosterSel, ui = CHARS[i].ui, info = CHARS[i].info[settings.lang ? "en" : "es"];
+  drawRaiderPortrait(ctx, i, 11, 8);
+  drawText(ctx, charName(i), 55, 8);
   STAT_BARS.forEach((s, n) => {
-    const y = 22 + n * 15;
-    drawText(ctx, tr(s.label), 78, y);
-    drawBars(ctx, 78, y + 9, ui[s.key], 5, 6, 1);
+    const y = 18 + n * 9;
+    drawText(ctx, tr(s.label), 55, y);
+    drawBars(ctx, 91, y + 2, ui[s.key], 5, 6, 1);
   });
-  let y = 76;
+  let y = 48;
   [["weapon", info.weapon], ["special", info.special]].forEach(([k, text]) => {
-    drawText(ctx, tr(k), 8, y);
+    drawText(ctx, tr(k), 32, y);
     ctx.fillStyle = "#55742a";
-    ctx.fillRect(8, y + 8, 144, 1);
-    wrapText(text, 144).slice(0, 3).forEach((line, n) => drawText(ctx, line, 8, y + 11 + n * 8));
-    y += 38;
+    ctx.fillRect(32, y + 8, 112, 1);
+    wrapText(text, 112).forEach((line, n) => drawText(ctx, line, 32, y + 11 + n * 8));
+    y += 46;
   });
 }
 
@@ -205,35 +255,35 @@ function drawSettings(ctx) {
 }
 
 function drawSelect(ctx) {
-  drawBackdrop(ctx);
+  drawRosterBackground(ctx);
   const center = (str, y) => drawTextCentered(ctx, str, y);
-  center(tr("choose"), 6);
-  CHARS.forEach((c, i) => {
-    const bx = 8 + i * 52;
-    const by = 24;
-    drawPortraitFrame(ctx, i, bx, by, false);
-    drawTextCentered(ctx, charName(i), by + 41, bx + 22);
+  ROSTER_PORTRAITS.forEach((portrait, i) => {
+    drawRosterCard(ctx, i, false);
+    const bx = 25 + (i % 3) * 40, by = 24 + Math.floor(i / 3) * 48;
+    const selected = pick.joined.some((joined, pi) => joined && pick.cur[pi] === i);
+    if (selected) {
+      ctx.strokeStyle = pick.joined.some((joined, pi) => joined && pick.cur[pi] === i && pick.ready[pi]) ? "#7a953a" : "#55742a";
+      ctx.strokeRect(bx - 0.5, by - 0.5, 33, 41);
+    }
     for (let pi = 0; pi < 2; pi++) {
       if (!pick.joined[pi] || pick.cur[pi] !== i) continue;
-      const mx = bx + (pi ? 28 : 4);
-      const my = pi ? by + 60 : by - 6;
+      const mx = bx + (pi ? 23 : -3);
+      const my = by - 3;
       const on = pick.ready[pi] || ((frame >> 4) & 1);
       ctx.fillStyle = on ? "#7a953a" : "#55742a";
-      ctx.fillRect(mx, my, 12, 6);
+      ctx.fillRect(mx, my, 10, 7);
       ctx.fillStyle = "#0f380f";
       drawTextTiny(ctx, String(pi + 1), mx + 3, my + 1);
-      if (pick.ready[pi]) { ctx.strokeStyle = "#7a953a"; ctx.strokeRect(bx + 0.5, by + 0.5, 43, 37); }
     }
   });
-  const ui = CHARS[pick.cur[0]].ui;
-  STAT_BARS.forEach((s, i) => {
-    const y = 100 + i * 9;
-    drawText(ctx, tr(s.label), 8, y);
-    drawBars(ctx, 48, y + 2, ui[s.key], 5, 8, 2);
-  });
-  if (((frame >> 4) & 1) && !pick.joined[1]) drawText(ctx, "J2 A", 112, 100);
-  if (pick.ready[0] && ((frame >> 4) & 1)) center(tr("ready"), 128);
-  else if (!pick.ready[0]) center(tr("pressA"), 128);
+  ctx.fillStyle = "#0f380f";
+  ctx.fillRect(0, 116, GBC_W, 12);
+  if (multiplayer) {
+    drawTextCentered(ctx, `J1 ${tr(pick.ready[0] ? "ready" : "pressA")}`, 118, 40);
+    drawTextCentered(ctx, `J2 ${tr(pick.ready[1] ? "ready" : "pressA")}`, 118, 120);
+  } else {
+    center(pick.ready[0] ? tr("ready") : tr("pressA"), 118);
+  }
 }
 
 // Digito diminuto 3x5 para las etiquetas de jugador.
@@ -243,4 +293,3 @@ function drawTextTiny(ctx, str, x, y) {
   if (!g) return;
   g.forEach((row, ry) => { for (let rx = 0; rx < 3; rx++) if (row[rx] === "1") ctx.fillRect(x + rx, y + ry, 1, 1); });
 }
-

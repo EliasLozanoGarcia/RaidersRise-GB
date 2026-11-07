@@ -50,7 +50,11 @@ const GLYPH_COIN = PICKUP.coin, GLYPH_HEART = PICKUP.heart, GLYPH_DIGIT0 = 127; 
 
 // Texto: los glifos de la fuente 8x8 (ancho proporcional) se componen en 32 tiles libres del tileset
 // (ids 74-92 y 106-118, transparentes en el PNG) y despues se pintan como tiles.
-const FONT_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,";
+const FONT_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,/©";
+const EXTRA_GLYPHS = [
+  ["0000010", "0000100", "0000100", "0001000", "0010000", "0010000", "0100000"],
+  ["0111110", "1000001", "1011101", "1010001", "1011101", "1000001", "0111110"],
+];
 const TEXT_IDS = [];
 for (let i = 74; i <= 92; i++) TEXT_IDS.push(i);
 for (let i = 106; i <= 118; i++) TEXT_IDS.push(i);
@@ -69,9 +73,13 @@ function initText() {
 
   const f = document.createElement("canvas");
   f.width = assets.fontImage.width;
-  f.height = assets.fontImage.height;
+  f.height = assets.fontImage.height + 8;
   const fc = f.getContext("2d");
   fc.drawImage(assets.fontImage, 0, 0);
+  fc.fillStyle = "#fff";
+  EXTRA_GLYPHS.forEach((glyph, i) => glyph.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) if (row[x] === "1") fc.fillRect(i * 8 + x, assets.fontImage.height + y, 1, 1);
+  }));
   const data = fc.getImageData(0, 0, f.width, f.height).data;
   fc.globalCompositeOperation = "source-in";
   fc.fillStyle = "#7a953a";
@@ -294,9 +302,9 @@ function render() {
   ctx.fillRect(0, 0, GBC_W, GBC_H);
 
   if (screen !== "game") {
-    const draw = { splash: drawSplash, raiders: drawRoster, sheet: drawSheet, settings: drawSettings }[screen] || drawSelect;
+    const draw = { splash: drawSplash, raiders: drawRoster, sheet: drawSheet, settings: drawSettings, about: drawAbout }[screen] || drawSelect;
     draw(ctx);
-    document.getElementById("info").textContent = tr({ splash: "hintSplash", raiders: "hintRaiders", sheet: "hintSheet", settings: "hintSettings" }[screen] || "hintSelect");
+    document.getElementById("info").textContent = tr({ splash: "hintSplash", raiders: "hintRaiders", sheet: "hintSheet", settings: "hintSettings", about: "hintAbout" }[screen] || (multiplayer ? "hintSelectMulti" : "hintSelectSingle"));
     return;
   }
 

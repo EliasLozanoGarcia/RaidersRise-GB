@@ -19,7 +19,7 @@ cuando se abre la pagina directamente con `file://`.
 | Mover | WASD | Flechas |
 | Disparar | F | `,` |
 | Teletransportarse (2 tiles, animado y con enfriamiento) | G | `.` |
-| Unirse | Activo al iniciar | Pulsa cualquier control |
+| Unirse | Activo al iniciar | Activo en Multiplayer |
 
 Para abrir un cofre o una puerta, mantente empujándolo en su dirección durante
 1,5 segundos. La hoja de la puerta gira junto al marco y deja libre el paso. Si
@@ -37,11 +37,15 @@ y desplazamiento equivalente de los sprites, manteniendo el HUD en la ventana.
 Pulsa `P` para pausar. Se admiten dos
 mandos; el primero controla J1 y el segundo J2.
 
-El juego arranca con una splash screen con tres opciones (Izq/Der y A): **Play**
-(selección de personaje), **Raiders** (galería de personajes con ficha detallada)
-y **Settings** (idioma, sonido, música y efectos; se guardan en `localStorage`; aún
-no hay música en el juego). La pantalla de selección de
-personaje (Izq/Der elegir, A confirmar, B cancelar; J2 se une pulsando A):
+El juego arranca con una splash screen con cuatro opciones (Arriba/Abajo y A):
+**Single Player**, **Multiplayer**, **Raiders** (galería de personajes con ficha
+detallada) y **About** (información legal y QR provisional de la versión móvil).
+En About, Izq/Der cambia de página y B vuelve al menú.
+Single Player permite un jugador; Multiplayer requiere que ambos jugadores
+confirmen sus personajes antes de comenzar. La pantalla de selección de
+personaje usa Izq/Der para elegir, A para confirmar y B para cancelar. La
+galería y la selección muestran los seis retratos del diseño; Baba, Maya y
+Korin aparecen bloqueados porque todavía no están disponibles para jugar:
 
 - **Kathy**: bazuca con explosión; especial en área 3x3 con daño continuo.
 - **Kurt**: +50 % vida, más lento; ametralladora (15 balas/s con dispersión);
@@ -56,8 +60,7 @@ ninguno de los dos. Empujar un cofre durante 1,5 segundos suma cinco monedas al
 inventario y deja monedas recogibles sobre el cofre y en celdas transitables
 cercanas. Los enemigos derrotados también pueden soltar monedas: camina sobre
 ellas para recogerlas; el total aparece en el HUD. Los enemigos varían
-ligeramente su velocidad, vagan cuando están lejos y evitan amontonarse. J2
-aparece junto a J1 cuando se une.
+ligeramente su velocidad, vagan cuando están lejos y evitan amontonarse.
 
 Las antiguas cajas de mana son **lucky blocks**: tras tres impactos sueltan
 al azar, con la misma probabilidad, un corazon (+1 vida hasta el maximo), una
@@ -78,10 +81,14 @@ Los numeros de Tiled 147-153 corresponden a los IDs internos 146-152.
   `assets/enemies_run.png`.
 - `maps/Leveltest._Fondo.csv` y `maps/Leveltest._Items.csv` son las capas del
   mapa exportadas desde Tiled.
-- `tools/convert_splash.py` convierte `assets/splash screen.png` en
-  `assets/splash_tiles.png` (185 tiles únicos) y `maps/splash.json` (mapa de tiles).
-- `tools/convert_portraits.py` recorta los retratos de `assets/selection Screen.png`
-  y los pasa a 4 verdes (`assets/portraits.png`).
+- `tools/convert_splash.py` convierte `assets/Splash_Screen.png` en
+  `assets/splash_tiles.png` (191 tiles únicos) y `maps/splash.json` (mapa de tiles);
+  borra las opciones originales para dibujar las opciones interactivas con la fuente.
+- `assets/QR.png` es el QR provisional mostrado en About; habrá que sustituirlo
+  cuando exista el enlace definitivo de la versión móvil.
+- `assets/selection Screen.png` y `assets/riders Profile.png` aportan los
+  gráficos de la galería, la selección de personaje y las fichas. Los nombres,
+  estados, estadísticas y descripciones se dibujan según el personaje elegido.
 - Los textos usan `assets/font_8x8.png` (ancho proporcional): se componen en un
   buffer propio de 32 tiles sueltos (ids 74-92 y 106-118) y se pintan como tiles.
 - Tiles compuestos: los items con transparencia (detectados por alfa en el tileset),

@@ -6,7 +6,7 @@ let upg = {};
 const lv = (k) => upg[k] || 0;
 // Personajes: hp/speed son multiplicadores sobre Kathy; ammo multiplica el cargador.
 // Personajes. Para anadir uno: nueva entrada aqui + su hoja de sprites en loader_dmg.js + su imagen en HIT_SPRITES (main.js)
-// + su retrato en assets/portraits.png (30x30 por personaje, en orden).
+// + su retrato y posicion en ROSTER_PORTRAITS (js/menus.js).
 // ui = barras 1-5 de los menus; info = textos de la ficha en es/en.
 const CHARS = [
   { name: "KATHY", img: "playerImage", hp: 256, speed: 256, ammo: 256, weapon: "rocket", ult: "area",
