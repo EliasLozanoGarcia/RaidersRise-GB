@@ -43,7 +43,9 @@ detallada) y **About** (información legal y QR provisional de la versión móvi
 En About, Izq/Der cambia de página y B vuelve al menú.
 Single Player permite un jugador; Multiplayer requiere que ambos jugadores
 confirmen sus personajes antes de comenzar. La pantalla de selección de
-personaje usa Izq/Der para elegir, A para confirmar y B para cancelar:
+personaje usa Izq/Der para elegir, A para confirmar y B para cancelar. La
+galería y la selección muestran los seis retratos del diseño; Baba, Maya y
+Korin aparecen bloqueados porque todavía no están disponibles para jugar:
 
 - **Kathy**: bazuca con explosión; especial en área 3x3 con daño continuo.
 - **Kurt**: +50 % vida, más lento; ametralladora (15 balas/s con dispersión);
@@ -84,8 +86,9 @@ Los numeros de Tiled 147-153 corresponden a los IDs internos 146-152.
   borra las opciones originales para dibujar las opciones interactivas con la fuente.
 - `assets/QR.png` es el QR provisional mostrado en About; habrá que sustituirlo
   cuando exista el enlace definitivo de la versión móvil.
-- `tools/convert_portraits.py` recorta los retratos de `assets/selection Screen.png`
-  y los pasa a 4 verdes (`assets/portraits.png`).
+- `assets/selection Screen.png` y `assets/riders Profile.png` aportan los
+  gráficos de la galería, la selección de personaje y las fichas. Los nombres,
+  estados, estadísticas y descripciones se dibujan según el personaje elegido.
 - Los textos usan `assets/font_8x8.png` (ancho proporcional): se componen en un
   buffer propio de 32 tiles sueltos (ids 74-92 y 106-118) y se pintan como tiles.
 - Tiles compuestos: los items con transparencia (detectados por alfa en el tileset),

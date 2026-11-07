@@ -28,6 +28,10 @@ const TXT = {
 };
 const tr = (k) => TXT[settings.lang ? "en" : "es"][k];
 const charName = (i) => CHARS[i].name[0] + CHARS[i].name.slice(1).toLowerCase();
+const ROSTER_PORTRAITS = [
+  { x: 11, y: 9, profile: true }, { x: 68, y: 25 }, { x: 108, y: 25 },
+  { x: 27, y: 73, name: "Baba" }, { x: 67, y: 73, name: "Maya" }, { x: 107, y: 73, name: "Korin" },
+];
 
 function openSelect() {
   screen = "select";
@@ -161,53 +165,67 @@ function drawBars(ctx, x, y, n, total = 5, w = 7, gap = 1) {
   }
 }
 
-function drawPortraitFrame(ctx, i, bx, by, framed) {
-  ctx.fillStyle = framed ? "#7a953a" : "#55742a";
-  ctx.fillRect(bx, by, 44, 38);
+function drawRaiderPortrait(ctx, i, x, y) {
+  const portrait = ROSTER_PORTRAITS[i];
+  ctx.drawImage(portrait.profile ? assets.profileImage : assets.selectionImage, portrait.x, portrait.y, 30, 30, x, y, 30, 30);
+}
+
+function drawRosterBackground(ctx) {
   ctx.fillStyle = "#2a4e19";
-  ctx.fillRect(bx + 2, by + 2, 40, 34);
-  ctx.drawImage(assets.portraitsImage, i * 30, 0, 30, 30, bx + 7, by + 4, 30, 30);
+  ctx.fillRect(0, 0, GBC_W, GBC_H);
+  ctx.drawImage(assets.selectionImage, 0, 0, 160, 20, 0, 0, 160, 20);
+  ctx.drawImage(assets.selectionImage, 0, 128, 160, 16, 0, 128, 160, 16);
+}
+
+function drawRosterCard(ctx, i, selected) {
+  const x = 25 + (i % 3) * 40, y = 24 + Math.floor(i / 3) * 48;
+  const locked = i >= CHARS.length;
+  if (selected) {
+    ctx.fillStyle = "#7a953a";
+    ctx.fillRect(x - 1, y - 1, 34, 42);
+  }
+  ctx.fillStyle = "#0f380f";
+  ctx.fillRect(x, y, 32, 40);
+  drawRaiderPortrait(ctx, i, x + 1, y);
+  ctx.globalAlpha = locked ? 0.6 : 1;
+  drawTextCentered(ctx, locked ? ROSTER_PORTRAITS[i].name : charName(i), y + 31, x + 16);
+  ctx.globalAlpha = 1;
+  if (locked) {
+    ctx.fillStyle = "#0f380f";
+    ctx.fillRect(x + 24, y + 23, 8, 8);
+    ctx.fillStyle = "#7a953a";
+    ctx.fillRect(x + 26, y + 24, 4, 1);
+    ctx.fillRect(x + 25, y + 25, 1, 2);
+    ctx.fillRect(x + 30, y + 25, 1, 2);
+    ctx.fillRect(x + 25, y + 27, 6, 4);
+  }
 }
 
 function drawRoster(ctx) {
-  drawBackdrop(ctx);
-  drawTextCentered(ctx, tr("raiders"), 8);
-  CHARS.forEach((c, i) => {
-    const bx = 8 + i * 52;
-    drawPortraitFrame(ctx, i, bx, 40, i === rosterSel);
-    ctx.globalAlpha = i === rosterSel ? 1 : 0.55;
-    drawTextCentered(ctx, charName(i), 82, bx + 22);
-    ctx.globalAlpha = 1;
-    if (i === rosterSel && ((frame >> 4) & 1) === 0) {
-      ctx.fillStyle = "#7a953a";
-      ctx.fillRect(bx + 19, 94, 5, 1);
-      ctx.fillRect(bx + 20, 93, 3, 1);
-      ctx.fillRect(bx + 21, 92, 1, 1);
-    }
-  });
+  drawRosterBackground(ctx);
+  ROSTER_PORTRAITS.forEach((portrait, i) => drawRosterCard(ctx, i, i === rosterSel));
 }
 
 function drawSheet(ctx) {
-  drawBackdrop(ctx);
-  const i = rosterSel, ui = CHARS[i].ui, info = CHARS[i].info[settings.lang ? "en" : "es"];
-  ctx.fillStyle = "#7a953a";
-  ctx.fillRect(6, 6, 64, 64);
+  ctx.drawImage(assets.profileImage, 0, 0);
   ctx.fillStyle = "#2a4e19";
-  ctx.fillRect(8, 8, 60, 60);
-  ctx.drawImage(assets.portraitsImage, i * 30, 0, 30, 30, 8, 8, 60, 60);
-  drawText(ctx, charName(i), 78, 8);
+  ctx.fillRect(28, 0, 124, 144);
+  ctx.fillRect(8, 8, 39, 31);
+  const i = rosterSel, ui = CHARS[i].ui, info = CHARS[i].info[settings.lang ? "en" : "es"];
+  drawRaiderPortrait(ctx, i, 11, 8);
+  drawText(ctx, charName(i), 55, 8);
   STAT_BARS.forEach((s, n) => {
-    const y = 22 + n * 15;
-    drawText(ctx, tr(s.label), 78, y);
-    drawBars(ctx, 78, y + 9, ui[s.key], 5, 6, 1);
+    const y = 18 + n * 9;
+    drawText(ctx, tr(s.label), 55, y);
+    drawBars(ctx, 91, y + 2, ui[s.key], 5, 6, 1);
   });
-  let y = 76;
+  let y = 48;
   [["weapon", info.weapon], ["special", info.special]].forEach(([k, text]) => {
-    drawText(ctx, tr(k), 8, y);
+    drawText(ctx, tr(k), 32, y);
     ctx.fillStyle = "#55742a";
-    ctx.fillRect(8, y + 8, 144, 1);
-    wrapText(text, 144).slice(0, 3).forEach((line, n) => drawText(ctx, line, 8, y + 11 + n * 8));
-    y += 38;
+    ctx.fillRect(32, y + 8, 112, 1);
+    wrapText(text, 112).forEach((line, n) => drawText(ctx, line, 32, y + 11 + n * 8));
+    y += 46;
   });
 }
 
@@ -237,34 +255,35 @@ function drawSettings(ctx) {
 }
 
 function drawSelect(ctx) {
-  drawBackdrop(ctx);
+  drawRosterBackground(ctx);
   const center = (str, y) => drawTextCentered(ctx, str, y);
-  center(tr("choose"), 6);
-  CHARS.forEach((c, i) => {
-    const bx = 8 + i * 52;
-    const by = 24;
-    drawPortraitFrame(ctx, i, bx, by, false);
-    drawTextCentered(ctx, charName(i), by + 41, bx + 22);
+  ROSTER_PORTRAITS.forEach((portrait, i) => {
+    drawRosterCard(ctx, i, false);
+    const bx = 25 + (i % 3) * 40, by = 24 + Math.floor(i / 3) * 48;
+    const selected = pick.joined.some((joined, pi) => joined && pick.cur[pi] === i);
+    if (selected) {
+      ctx.strokeStyle = pick.joined.some((joined, pi) => joined && pick.cur[pi] === i && pick.ready[pi]) ? "#7a953a" : "#55742a";
+      ctx.strokeRect(bx - 0.5, by - 0.5, 33, 41);
+    }
     for (let pi = 0; pi < 2; pi++) {
       if (!pick.joined[pi] || pick.cur[pi] !== i) continue;
-      const mx = bx + (pi ? 28 : 4);
-      const my = pi ? by + 60 : by - 6;
+      const mx = bx + (pi ? 23 : -3);
+      const my = by - 3;
       const on = pick.ready[pi] || ((frame >> 4) & 1);
       ctx.fillStyle = on ? "#7a953a" : "#55742a";
-      ctx.fillRect(mx, my, 12, 6);
+      ctx.fillRect(mx, my, 10, 7);
       ctx.fillStyle = "#0f380f";
       drawTextTiny(ctx, String(pi + 1), mx + 3, my + 1);
-      if (pick.ready[pi]) { ctx.strokeStyle = "#7a953a"; ctx.strokeRect(bx + 0.5, by + 0.5, 43, 37); }
     }
   });
-  const ui = CHARS[pick.cur[0]].ui;
-  STAT_BARS.forEach((s, i) => {
-    const y = 100 + i * 9;
-    drawText(ctx, tr(s.label), 8, y);
-    drawBars(ctx, 48, y + 2, ui[s.key], 5, 8, 2);
-  });
-  if (pick.ready[0] && ((frame >> 4) & 1)) center(tr("ready"), 128);
-  else if (!pick.ready[0]) center(tr("pressA"), 128);
+  ctx.fillStyle = "#0f380f";
+  ctx.fillRect(0, 116, GBC_W, 12);
+  if (multiplayer) {
+    drawTextCentered(ctx, `J1 ${tr(pick.ready[0] ? "ready" : "pressA")}`, 118, 40);
+    drawTextCentered(ctx, `J2 ${tr(pick.ready[1] ? "ready" : "pressA")}`, 118, 120);
+  } else {
+    center(pick.ready[0] ? tr("ready") : tr("pressA"), 118);
+  }
 }
 
 // Digito diminuto 3x5 para las etiquetas de jugador.
