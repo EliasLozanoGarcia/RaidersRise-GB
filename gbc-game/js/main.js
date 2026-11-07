@@ -22,6 +22,7 @@ function update() {
       } else if (window.pauseSel === 1) {
         paused = false;
         resetGame(); // Reiniciar
+        players[1].active = multiplayer;
       } else if (window.pauseSel === 2) {
         paused = false;
         resetGame();
@@ -54,7 +55,7 @@ function update() {
     return;
   }
 
-  if (!players[1].active && input.held[1]) {
+  if (multiplayer && !players[1].active && input.held[1]) {
     const firstPlayer = players[0];
     const [joinX, joinY] = findFree(
       (firstPlayer.x >> 8) + 12,

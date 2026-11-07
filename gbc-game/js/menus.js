@@ -4,7 +4,10 @@
 // ------------------------------------------------------------ Pantallas: splash y seleccion de personaje
 let screen = "splash";
 let menuSel = 0, rosterSel = 0, setSel = 0;
+let multiplayer = false, aboutPage = 0;
 const pick = { cur: [0, 1], ready: [false, false], joined: [true, false] };
+const SPLASH_OPTIONS = ["Single Player", "Multiplayer", "Raiders", "About"];
+const ABOUT_TEXT = "Raiders Rise ©2026 Penguin Armada S.L. Raiders Rise and the Raiders Rise logo are trademarks and/or registered trademarks of Penguin Armada S.L. Penguin Armada and the Penguin Armada logo are trademarks and/or registered trademarks of Penguin Armada S.L.";
 const STAT_BARS = [
   { label: "spd", key: "spd" },
   { label: "hp", key: "hp" },
@@ -14,11 +17,13 @@ const STAT_BARS = [
 const TXT = {
   es: { choose: "Elige personaje", pressA: "A elegir", ready: "Listo", spd: "Vel", hp: "Vida", dmg: "Dano", weapon: "Arma", special: "Especial",
     raiders: "Raiders", settings: "Ajustes", language: "Idioma", langName: "Espanol", sound: "Sonido", music: "Musica", sfx: "Efectos", back: "Volver",
-    hintSplash: "Izq/Der elegir, F aceptar", hintSelect: "Izq/Der elegir, F confirmar, G cancelar; J2: pulsa , para unirte",
+    hintSplash: "Arriba/Abajo elegir, F aceptar", hintSelectSingle: "Izq/Der elegir, F confirmar, G cancelar", hintSelectMulti: "Izq/Der elegir, F confirmar, G cancelar; J2: flechas y ,",
+    hintAbout: "Izq/Der cambiar pagina, G volver",
     hintRaiders: "Izq/Der elegir, F ver ficha, G volver", hintSheet: "Izq/Der cambiar personaje, G volver", hintSettings: "Arriba/Abajo elegir, Izq/Der cambiar, G volver" },
   en: { choose: "Choose character", pressA: "A choose", ready: "Ready", spd: "Speed", hp: "HP", dmg: "Damage", weapon: "Weapon", special: "Special",
     raiders: "Raiders", settings: "Settings", language: "Language", langName: "English", sound: "Sound", music: "Music", sfx: "Effects", back: "Back",
-    hintSplash: "Left/Right choose, F accept", hintSelect: "Left/Right choose, F confirm, G cancel; P2: press , to join",
+    hintSplash: "Up/Down choose, F accept", hintSelectSingle: "Left/Right choose, F confirm, G cancel", hintSelectMulti: "Left/Right choose, F confirm, G cancel; P2: arrows and ,",
+    hintAbout: "Left/Right change page, G back",
     hintRaiders: "Left/Right choose, F details, G back", hintSheet: "Left/Right change character, G back", hintSettings: "Up/Down choose, Left/Right change, G back" },
 };
 const tr = (k) => TXT[settings.lang ? "en" : "es"][k];
@@ -27,11 +32,12 @@ const charName = (i) => CHARS[i].name[0] + CHARS[i].name.slice(1).toLowerCase();
 function openSelect() {
   screen = "select";
   pick.ready = [false, false];
-  pick.joined = [true, false];
+  pick.joined = [true, multiplayer];
   pick.cur = [chars[0], chars[1]];
 }
 function openRaiders() { screen = "raiders"; }
 function openSettings() { screen = "settings"; setSel = 0; }
+function openAbout() { screen = "about"; aboutPage = 0; }
 
 function updateMenu() {
   rand16(); // la semilla depende del momento en que el jugador pulsa
@@ -41,8 +47,19 @@ function updateMenu() {
   const dx = (any & BTN.RIGHT ? 1 : 0) - (any & BTN.LEFT ? 1 : 0);
   const dy = (any & BTN.DOWN ? 1 : 0) - (any & BTN.UP ? 1 : 0);
   if (screen === "splash") {
-    if (dx) { menuSel = (menuSel + 3 + dx) % 3; sfx("hit"); }
-    if (ok) { sfx("coin"); [openSelect, openRaiders, openSettings][menuSel](); }
+    if (dy) { menuSel = (menuSel + SPLASH_OPTIONS.length + dy) % SPLASH_OPTIONS.length; sfx("hit"); }
+    if (ok) {
+      sfx("coin");
+      if (menuSel < 2) { multiplayer = menuSel === 1; openSelect(); }
+      else if (menuSel === 2) openRaiders();
+      else openAbout();
+    }
+    return;
+  }
+  if (screen === "about") {
+    const pages = Math.ceil(wrapText(ABOUT_TEXT, 144).length / 13) + 1;
+    if (dx) { aboutPage = (aboutPage + pages + dx) % pages; sfx("hit"); }
+    if (back) screen = "splash";
     return;
   }
   if (screen === "raiders" || screen === "sheet") {
@@ -65,11 +82,8 @@ function updateMenu() {
   }
   const pressedBy = [pr0, pr1];
   for (let i = 0; i < 2; i++) {
+    if (i === 1 && !multiplayer) continue;
     const pr = pressedBy[i];
-    if (!pick.joined[i]) {
-      if (pr & (BTN.A | BTN.START | BTN.LEFT | BTN.RIGHT)) { pick.joined[i] = true; sfx("coin"); }
-      continue;
-    }
     if (!pick.ready[i]) {
       const n = CHARS.length;
       if (pr & BTN.LEFT) { pick.cur[i] = (pick.cur[i] + n - 1) % n; sfx("hit"); }
@@ -78,9 +92,6 @@ function updateMenu() {
       else if (i === 0 && (pr & BTN.B)) screen = "splash";
     } else if (pr & BTN.B) {
       pick.ready[i] = false;
-    } else if (i === 1 && (pr & BTN.SELECT)) {
-      pick.joined[1] = false;
-      pick.ready[1] = false;
     }
   }
   if (pick.ready[0] && (!pick.joined[1] || pick.ready[1])) {
@@ -99,22 +110,43 @@ function drawSplash(ctx) {
     const t = m.tiles[i];
     ctx.drawImage(assets.splashTiles, (t % m.cols) * 8, ((t / m.cols) | 0) * 8, 8, 8, (i % m.w) * 8, ((i / m.w) | 0) * 8, 8, 8);
   }
-  ["Play", "Raiders", "Settings"].forEach((label, i) => {
-    const cx = 27 + i * 53;
+  SPLASH_OPTIONS.forEach((label, i) => {
+    const cx = GBC_W >> 1, y = 100 + i * 9;
+    const left = cx - (textWidth(label) >> 1), right = left + textWidth(label);
     const sel = i === menuSel;
-    ctx.globalAlpha = sel ? 1 : 0.55;
-    drawTextCentered(ctx, label, 106, cx);
+    if (sel) {
+      ctx.fillStyle = "#2a4e19";
+      ctx.fillRect(left - 3, y, right - left + 6, 8);
+    }
+    ctx.globalAlpha = sel ? 1 : 0.7;
+    drawTextCentered(ctx, label, y, cx);
     ctx.globalAlpha = 1;
-    if (sel && ((frame >> 4) & 1) === 0) {
+    if (sel) {
+      const offset = Math.floor(frame / 30) % 2;
       ctx.fillStyle = "#7a953a";
-      ctx.fillRect(cx - 2, 100, 5, 1);
-      ctx.fillRect(cx - 1, 101, 3, 1);
-      ctx.fillRect(cx, 102, 1, 1);
-      ctx.fillRect(cx - 2, 118, 5, 1);
-      ctx.fillRect(cx - 1, 117, 3, 1);
-      ctx.fillRect(cx, 116, 1, 1);
+      ctx.fillRect(left - 8 - offset, y + 1, 1, 5);
+      ctx.fillRect(left - 7 - offset, y + 2, 1, 3);
+      ctx.fillRect(left - 6 - offset, y + 3, 1, 1);
+      ctx.fillRect(right + 7 + offset, y + 1, 1, 5);
+      ctx.fillRect(right + 6 + offset, y + 2, 1, 3);
+      ctx.fillRect(right + 5 + offset, y + 3, 1, 1);
     }
   });
+}
+
+function drawAbout(ctx) {
+  drawBackdrop(ctx);
+  drawTextCentered(ctx, "About", 6);
+  const lines = wrapText(ABOUT_TEXT, 144);
+  const textPages = Math.ceil(lines.length / 13);
+  if (aboutPage < textPages) {
+    lines.slice(aboutPage * 13, (aboutPage + 1) * 13).forEach((line, i) => drawText(ctx, line, 8, 20 + i * 8));
+  } else {
+    drawTextCentered(ctx, "A retro action game", 18);
+    drawTextCentered(ctx, "Play on mobile", 27);
+    ctx.drawImage(assets.qrImage, 35, 40, 90, 90);
+  }
+  drawTextCentered(ctx, `${aboutPage + 1}/${textPages + 1}`, 134);
 }
 
 function drawBackdrop(ctx) {
@@ -231,7 +263,6 @@ function drawSelect(ctx) {
     drawText(ctx, tr(s.label), 8, y);
     drawBars(ctx, 48, y + 2, ui[s.key], 5, 8, 2);
   });
-  if (((frame >> 4) & 1) && !pick.joined[1]) drawText(ctx, "J2 A", 112, 100);
   if (pick.ready[0] && ((frame >> 4) & 1)) center(tr("ready"), 128);
   else if (!pick.ready[0]) center(tr("pressA"), 128);
 }
@@ -243,4 +274,3 @@ function drawTextTiny(ctx, str, x, y) {
   if (!g) return;
   g.forEach((row, ry) => { for (let rx = 0; rx < 3; rx++) if (row[rx] === "1") ctx.fillRect(x + rx, y + ry, 1, 1); });
 }
-

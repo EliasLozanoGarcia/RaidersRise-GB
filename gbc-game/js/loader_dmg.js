@@ -77,6 +77,7 @@ window.DMGLoader = (function () {
         teleportImage,
         fontImage,
         portraitsImage,
+        qrImage,
         shotSmallImage,
         shotBigImage,
         kurtDashImage
@@ -96,6 +97,7 @@ window.DMGLoader = (function () {
         loadImage("assets/Teleport_GBC.png"),
         loadImage("assets/font_8x8.png"),
         loadImage("assets/portraits.png"),
+        loadImage("assets/QR.png"),
         // Sprites de disparo: si faltan, el juego dibuja las balas como cuadrados (no es fatal).
         loadImage("assets/disparo_Small.png").catch(() => null), // Kurt
         loadImage("assets/disparo_Big.png").catch(() => null),   // Kathy
@@ -161,6 +163,7 @@ window.DMGLoader = (function () {
         teleportImage,
         fontImage,
         portraitsImage,
+        qrImage,
         shotSmallImage,
         shotBigImage,
         kurtDashImage,

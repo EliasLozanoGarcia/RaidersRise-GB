@@ -9,12 +9,13 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
-src = Image.open(ROOT / "assets" / "splash screen.png").convert("RGB")
+src = Image.open(ROOT / "assets" / "Splash_Screen.png").convert("RGB")
+if src.size != (160, 144):
+    raise ValueError(f"La splash debe medir 160x144, no {src.size}")
 
-# Borra los textos PLAY / RAIDERS / SETINGS y sus flechas (el juego los pinta con la fuente 8x8),
-# copiando, fila a fila, el color de la franja de fondo.
+# Borra las opciones y flechas originales; el juego las pinta con su fuente.
 px = src.load()
-for y in range(100, 124):
+for y in range(104, 128):
     for x in range(0, 160):
         px[x, y] = px[158, y]
 
