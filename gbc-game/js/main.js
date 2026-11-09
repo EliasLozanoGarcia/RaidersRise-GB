@@ -109,6 +109,7 @@ function update() {
 }
 
 function updateCamera(live) {
+  if (wallShake > 0) return;
   if (live.length) {
     let mx = 0, my = 0;
     for (const p of live) { mx += (p.x >> 8) + 8; my += (p.y >> 8) + 12; }

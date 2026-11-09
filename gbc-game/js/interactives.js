@@ -34,7 +34,7 @@ const WALL_STAGES = [
   { top: [76, 77], bottom: [108, 109] },
   { top: [78, 79], bottom: [110, 111] },
 ];
-const WALL_STAGE_FRAMES = 12;
+const WALL_STAGE_FRAMES = 24; // 0,4 s a ~60 actualizaciones por segundo
 const WALL_SHAKE_FRAMES = 6;
 const BTN_TILES = { top: 82, bottom: 114, topOff: 83, bottomOff: 115 };
 
@@ -483,7 +483,7 @@ function updateButtonsAndWalls() {
   if (!held) return;
   for (const w of lowerWalls) {
     if (w.shown >= WALL_STAGES.length) continue;
-    if (w.timer > 0) { w.timer--; continue; }
+    if (w.timer > 0 && --w.timer > 0) continue;
     if (!w.started) { w.started = true; sfx("open"); }
     w.shown++;
     applyWallStage(w, w.shown);
