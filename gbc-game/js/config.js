@@ -36,6 +36,7 @@ const CFG = {
   specialFrames: 240,
   specialTickFrames: 30,
   specialDamage: 1,
+  specialExplosionFrameTicks: 12, // 0,2 s a ~60 actualizaciones por segundo
   volume: 0.5, // solo audio web
   nudgePixels: 3,
   // Objetos del mapa que aparecen al cargar (el resto de ubicaciones se descarta al azar).

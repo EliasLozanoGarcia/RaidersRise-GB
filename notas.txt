@@ -1,7 +1,9 @@
 Crear Spawn Areas custom para Slugs, Big Slugs, Bees, Big Bees, etc... con algun parametro de cantidad, 
 Manten el Spawn tal coimo esta ahora para spam totalmente aleatorio de todo.
 
-Hacer tiles para las explosiones.
+Hacer tiles para las abilidades
+-Area seleccionada
+-Explosion
 
 Mejorar dash de Kurt, los sprites.
 
@@ -13,9 +15,10 @@ Mejorar menus:
 -Mejorar avatares.
 -Imagen del personaje de media pantalla para el profile, con pose chula.
 -Result Screen
+-Tienda co ncartas o iconos
 
 Diseño:
--REsolver las abilidades, lo del select no funciona bien, probar: 
+-Resolver las abilidades, lo del select no funciona bien, probar: 
  1.usar el select para cambiar entre dash y ultimate.
  2.doble tap en la direccion para hacer el dash (las diagoneles son complicadas) y la B para la Ultimate.
 -Pasivas

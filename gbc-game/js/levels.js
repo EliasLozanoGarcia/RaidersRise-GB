@@ -46,6 +46,7 @@ function resetGame(keepUpgrades) {
   enemies = [];
   bullets = [];
   teleportEffects = [];
+  specialExplosions = [];
   blasts.clear();
   wave = 0;
   waveTimer = 60;
@@ -59,4 +60,3 @@ function resetGame(keepUpgrades) {
   initInteractives();
   resetComposites();
 }
-

@@ -60,6 +60,7 @@ const COIN_TILE = PICKUP.coin, FALL_FRAMES = 6;
 const ALERT_CHEST = 93, ALERT_CRYSTAL = [126, 127];
 const compSlot = new Map(), compFree = [], coinAnim = new Map(), transparentTiles = new Set();
 let compCv = null, compCtx = null;
+let specialCompCv = null, specialCompCtx = null;
 
 function initComposites() {
   compCv = document.createElement("canvas");
@@ -110,12 +111,12 @@ function resetComposites() {
   for (let idx = 0; idx < itemsLayer.length; idx++) if (needsComposite(itemsLayer[idx]) || fondoClear(idx)) setComposite(idx, 0);
 }
 
-function drawTileInto(c, id, attr, ox, oy) {
+function drawTileInto(c, id, attr, ox, oy, image = assets.tilesetImage) {
   c.save();
   c.translate(ox + 4, oy + 4);
   if (attr & 0x20) c.scale(-1, 1);
   if (attr & 0x40) c.scale(1, -1);
-  c.drawImage(assets.tilesetImage, (id % 32) * 8, ((id / 32) | 0) * 8, 8, 8, -4, -4, 8, 8);
+  c.drawImage(image, (id % 32) * 8, ((id / 32) | 0) * 8, 8, 8, -4, -4, 8, 8);
   c.restore();
 }
 
@@ -137,6 +138,32 @@ function setComposite(idx, dy, noItem = false) {
   if (fondoLayer[idx] >= 0) drawTileInto(compCtx, fondoLayer[idx], fondoAttrs[idx], x, 0);
   if (!noItem && itemsLayer[idx] >= 0) drawTileInto(compCtx, itemsLayer[idx], itemsAttrs[idx], x, dy);
   compCtx.restore();
+  return true;
+}
+
+// El marcador reemplaza el suelo, pero conserva encima los elementos transparentes.
+function drawSpecialComposite(ctx, idx, id, attr, x, y, itemImage = assets.tilesetImage) {
+  if (!fondoClear(idx) && !needsComposite(itemsLayer[idx])) return false;
+  if (!specialCompCtx) {
+    specialCompCv = document.createElement("canvas");
+    specialCompCv.width = specialCompCv.height = 8;
+    specialCompCtx = specialCompCv.getContext("2d");
+  }
+  const c = specialCompCtx;
+  c.clearRect(0, 0, 8, 8);
+  c.save();
+  c.beginPath();
+  c.rect(0, 0, 8, 8);
+  c.clip();
+  drawTileInto(c, id, attr, 0, 0);
+  if (fondoClear(idx)) drawTileInto(c, fondoLayer[idx], fondoAttrs[idx], 0, 0);
+  if (itemsLayer[idx] >= 0 && !coinWaiting(idx)) {
+    const coin = coinAnim.get(idx);
+    const dy = coin && coin.fall ? -1 : 0;
+    drawTileInto(c, itemsLayer[idx], itemsAttrs[idx], 0, dy, itemImage);
+  }
+  c.restore();
+  ctx.drawImage(specialCompCv, x, y);
   return true;
 }
 

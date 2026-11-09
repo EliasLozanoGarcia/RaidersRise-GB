@@ -76,6 +76,7 @@ function update() {
     effect.age++;
     return effect.age < CFG.teleportEffectFrames;
   });
+  updateSpecialExplosions();
   for (const [idx, timer] of blasts) {
     if (timer <= 1) blasts.delete(idx);
     else blasts.set(idx, timer - 1);

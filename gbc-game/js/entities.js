@@ -467,8 +467,148 @@ function specialRect(sp) {
   return { x: sp.tx * 8, y: sp.ty * 8, w: sp.w * 8, h: sp.h * 8 };
 }
 
+// Los IDs son indices locales del PNG, no los numeros de Tiled (que empiezan en 1).
+function specialMarkerTile(x, y, w, h) {
+  if (h === 1) return { id: x === 0 || x === w - 1 ? 90 : 91, attr: x === w - 1 && w > 1 ? 0x20 : 0 };
+  if (w === 1) return { id: y === 0 || y === h - 1 ? 89 : 121, attr: y === h - 1 && h > 1 ? 0x40 : 0 };
+  const left = x === 0, right = x === w - 1, top = y === 0, bottom = y === h - 1;
+  if ((left || right) && (top || bottom)) return { id: 122, attr: (right ? 0x20 : 0) | (bottom ? 0x40 : 0) };
+  if (left || right) return { id: 92, attr: right ? 0x20 : 0 };
+  if (top || bottom) return { id: 123, attr: bottom ? 0x40 : 0 };
+  return { id: 124, attr: 0 };
+}
+
+function specialFreeParts(tx, ty) {
+  if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return [];
+  const parts = [];
+  const quadrant = { x: 0, y: 0, w: 4, h: 4 };
+  for (const y of [0, 4]) for (const x of [0, 4]) {
+    if (!boxBlocked(tx * 8 + x, ty * 8 + y, quadrant)) parts.push({ x, y });
+  }
+  return parts;
+}
+
+const specialFloor = (tx, ty) => specialFreeParts(tx, ty).length > 0;
+
+// Limites en coordenadas diagonales u=x+y y v=x-y, en unidades de tile.
+function diagonalArea(cx, cy, widthU, widthV) {
+  const spanU = Math.max(2, 2 * Math.round(widthU / Math.SQRT2));
+  const spanV = Math.max(2, 2 * Math.round(widthV / Math.SQRT2));
+  const centerU = Math.round((cx + cy) / 8);
+  let centerV = Math.round((cx - cy) / 8);
+  if (((centerU - spanU / 2) - (centerV - spanV / 2)) % 2 !== 0) centerV++;
+  return { minU: centerU - spanU / 2, maxU: centerU + spanU / 2,
+    minV: centerV - spanV / 2, maxV: centerV + spanV / 2 };
+}
+
+function diagonalCells(area) {
+  const cells = [];
+  const minX = Math.floor((area.minU + area.minV) / 2);
+  const maxX = Math.ceil((area.maxU + area.maxV) / 2);
+  const minY = Math.floor((area.minU - area.maxV) / 2);
+  const maxY = Math.ceil((area.maxU - area.minV) / 2);
+  for (let ty = minY; ty < maxY; ty++) for (let tx = minX; tx < maxX; tx++) {
+    const u = tx + ty + 1, v = tx - ty;
+    if (u < area.minU || u > area.maxU || v < area.minV || v > area.maxV) continue;
+    let attr = 0, edge = true;
+    if (u === area.minU) attr = 0;
+    else if (u === area.maxU) attr = 0x60;
+    else if (v === area.minV) attr = 0x40;
+    else if (v === area.maxV) attr = 0x20;
+    else edge = false;
+    cells.push({ tx, ty, id: edge ? 88 : 124, attr });
+  }
+  return cells;
+}
+
+function specialMarkerCells(sp) {
+  if (sp.beam) return sp.cells;
+  if (sp.diagonal) return diagonalCells(sp.diagonal).filter((cell) => specialFloor(cell.tx, cell.ty));
+  const cells = [];
+  for (let y = 0; y < sp.h; y++) for (let x = 0; x < sp.w; x++) {
+    const tx = sp.tx + x, ty = sp.ty + y;
+    if (specialFloor(tx, ty)) cells.push({ tx, ty, ...specialMarkerTile(x, y, sp.w, sp.h) });
+  }
+  return cells;
+}
+
+// Recorre los mismos pasos y limite de distancia que el proyectil real.
+function aimBeam(p) {
+  const u = DIRU[p.facing], s = CFG.bulletSpeed;
+  const beam = {
+    x: ((p.x >> 8) + 8) * 256, y: ((p.y >> 8) + 12) * 256,
+    vx: (u[0] * s) >> 8, vy: (u[1] * s) >> 8, life: 480 << 8, beam: true
+  };
+  let x = beam.x, y = beam.y, life = beam.life;
+  const cells = [], seen = new Set();
+  while (life > 0) {
+    x += beam.vx; y += beam.vy;
+    life -= Math.max(Math.abs(beam.vx), Math.abs(beam.vy));
+    if (life <= 0) break;
+    const px = x >> 8, py = y >> 8, tx = px >> 3, ty = py >> 3;
+    if (specialFloor(tx, ty)) {
+      const idx = ty * MAP_W + tx;
+      if (!seen.has(idx)) { seen.add(idx); cells.push({ tx, ty }); }
+    }
+    if (boxBlocked(px, py, BBOX, true, false)) break;
+  }
+  const vertical = Math.abs(beam.vy) > Math.abs(beam.vx);
+  const reverse = vertical ? beam.vy < 0 : beam.vx < 0;
+  const [dx, dy] = DIRS[p.facing];
+  if (dx && dy && cells.length) {
+    const first = cells[0], last = cells[cells.length - 1];
+    const u0 = first.tx + first.ty + 1, v0 = first.tx - first.ty;
+    const u1 = last.tx + last.ty + 1, v1 = last.tx - last.ty;
+    const alongU = dx === dy;
+    const start = alongU ? u0 : v0, end = alongU ? u1 : v1;
+    const center = alongU ? v0 : u0;
+    let minAlong = Math.min(start, end) - 1, maxAlong = Math.max(start, end) + 1;
+    const minAcross = center - 1, maxAcross = center + 1;
+    if ((minAlong - minAcross) % 2 !== 0) minAlong--;
+    if ((maxAlong - minAcross) % 2 !== 0) maxAlong++;
+    const area = alongU
+      ? { minU: minAlong, maxU: maxAlong, minV: minAcross, maxV: maxAcross }
+      : { minU: minAcross, maxU: maxAcross, minV: minAlong, maxV: maxAlong };
+    return { state: "aim", beam, cells: diagonalCells(area).filter((cell) => specialFloor(cell.tx, cell.ty)) };
+  }
+  cells.forEach((cell, i) => {
+    const pos = reverse ? cells.length - 1 - i : i;
+    Object.assign(cell, specialMarkerTile(vertical ? 0 : pos, vertical ? pos : 0, vertical ? 1 : cells.length, vertical ? cells.length : 1));
+  });
+  return { state: "aim", beam, cells };
+}
+
+function updateSpecialExplosions() {
+  specialExplosions = specialExplosions.filter((effect) => {
+    effect.age++;
+    return effect.age < 4 * CFG.specialExplosionFrameTicks;
+  });
+}
+
 function specialHit(p, sp, mult, hurtPlayers) {
   const r = specialRect(sp);
+  if (sp.diagonal) {
+    const a = sp.diagonal;
+    const intersects = (x, y, b) => {
+      const l = x + b.x, t = y + b.y, right = l + b.w, bottom = t + b.h;
+      return l + t < a.maxU * 8 && right + bottom > a.minU * 8 &&
+        l - bottom < a.maxV * 8 && right - t > a.minV * 8 &&
+        right > (a.minU + a.minV) * 4 && l < (a.maxU + a.maxV) * 4 &&
+        bottom > (a.minU - a.maxV) * 4 && t < (a.maxU - a.minV) * 4;
+    };
+    for (const e of enemies) if (e.hp > 0 && intersects(e.x >> 8, e.y >> 8, e.box)) damageEnemy(e, specialDamage() * mult);
+    for (const cell of diagonalCells(a)) {
+      if (cell.tx >= 0 && cell.ty >= 0 && cell.tx < MAP_W && cell.ty < MAP_H)
+        checkBulletHitItems(cell.tx * 8 + 4, cell.ty * 8 + 4);
+    }
+    if (hurtPlayers) for (const q of players) {
+      if (q.active && q.hp > 0 && !q.tp && q.shield === 0 && intersects(q.x >> 8, q.y >> 8, PBOX)) {
+        q.hp -= specialDamage();
+        q.hit = CFG.hurtFlash;
+      }
+    }
+    return;
+  }
   for (const e of enemies) {
     if (e.hp > 0 && overlap(e.x >> 8, e.y >> 8, e.box, 0, 0, r)) damageEnemy(e, specialDamage() * mult);
   }
@@ -488,13 +628,15 @@ function updateSpecial(p, held) {
   const sel = (held & BTN.SELECT) !== 0;
   const ult = p.ch.ult;
   if (ult === "beam") {
-    if (p.mana < CFG.specialCharge) p.mana = Math.min(CFG.specialCharge, p.mana + manaRegen());
-    else if (input.pressed[p.id] & BTN.SELECT) {
-      const u = DIRU[p.facing];
-      const s = CFG.bulletSpeed;
-      bullets.push({ x: ((p.x >> 8) + 8) * 256, y: ((p.y >> 8) + 12) * 256, vx: (u[0] * s) >> 8, vy: (u[1] * s) >> 8, life: 480 << 8, beam: true });
+    if (sel && (p.sp || p.mana >= CFG.specialCharge)) {
+      p.sp = aimBeam(p);
+    } else if (p.sp) {
+      bullets.push(p.sp.beam);
+      p.sp = null;
       p.mana = 0;
       sfx("special");
+    } else if (p.mana < CFG.specialCharge) {
+      p.mana = Math.min(CFG.specialCharge, p.mana + manaRegen());
     }
     return;
   }
@@ -520,7 +662,13 @@ function updateSpecial(p, held) {
     const cx = (p.x >> 8) + 8 + ((u[0] * dist + 128) >> 8);
     const cy = (p.y >> 8) + 9 + ((u[1] * dist + 128) >> 8);
     p.sp = { state: "aim", w, h, tx: (cx >> 3) - (w >> 1), ty: (cy >> 3) - (h >> 1), t: 0 };
+    if (d[0] && d[1]) {
+      const long = ult === "burst" ? 5 + lv("spArea") : specialSize();
+      const short = ult === "burst" ? 2 : long;
+      p.sp.diagonal = diagonalArea(cx, cy, d[0] === d[1] ? short : long, d[0] === d[1] ? long : short);
+    }
   } else if (p.sp) {
+    if (ult === "burst") specialExplosions.push({ cells: specialMarkerCells(p.sp), age: 0 });
     p.sp.state = "active";
     p.sp.t = 0;
     p.mana = 0;
@@ -550,6 +698,7 @@ function continueGame() {
   });
   enemies = [];
   bullets = [];
+  specialExplosions = [];
   wave = Math.max(0, wave - 1);
   waveTimer = 60;
   gameOver = false;

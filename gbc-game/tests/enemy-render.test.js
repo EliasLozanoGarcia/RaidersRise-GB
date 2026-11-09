@@ -43,7 +43,7 @@ function setup() {
       return img;
     }
     const assets = { enemyImage: image("slug", 8, [7, 2]), bigSlugImage: image("big", 16, [15]), beeImage: image("bee", 8, [6, 3]) };
-    const players = [], enemies = [], bullets = [], luckyBoxes = [], teleportEffects = [];
+    const players = [], enemies = [], bullets = [], luckyBoxes = [], teleportEffects = [], specialExplosions = [];
     const blasts = new Map(), barrierHit = new Map();
     let frame = 0, selFrame = -1, screen = "game", gameOver = false, paused = false, shop = null, wave = 0, wallShake = 0;
   `, context);

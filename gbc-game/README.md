@@ -18,6 +18,7 @@ cuando se abre la pagina directamente con `file://`.
 |---|---|---|
 | Mover | WASD | Flechas |
 | Disparar | F | `,` |
+| Apuntar / activar especial | Mantener / soltar Tab | Mantener / soltar `/` |
 | Teletransportarse (2 tiles, animado y con enfriamiento) | G | `.` |
 | Unirse | Activo al iniciar | Activo en Multiplayer |
 
@@ -51,7 +52,18 @@ Korin aparecen bloqueados porque todavía no están disponibles para jugar:
 - **Kurt**: +50 % vida, más lento; ametralladora (15 balas/s con dispersión);
   especial 5x2 con daño x3 instantáneo.
 - **Skreek**: +25 % vida, más rápido; espada (5 golpes/s, 2 tiles delante);
-  especial: proyectil que atraviesa y destruye todo (SELECT con la barra llena).
+  especial: proyectil que atraviesa y destruye todo.
+
+Con la barra de especial llena, mantén SELECT para marcar el área o trayectoria
+y suéltalo para activar la habilidad. El marcador y la explosión solo aparecen
+en celdas sin colisión y en la mitad libre de los tiles de media colisión parcial;
+las mitades bloqueadas, y los tiles de colisión completa, no se marcan. Las
+monedas y los elementos transparentes se recomponen sobre el marcador.
+Las áreas diagonales se giran y usan el tile diagonal volteado en sus bordes;
+el daño de Kathy y Kurt sigue la misma forma. Kathy repite los cuatro tiles de
+explosión (154–157 en Tiled), 0,2 segundos cada uno, mientras su área está
+activa; Kurt los reproduce una vez. Skreek no muestra explosión al lanzar su
+proyectil. Los valores y ritmos de daño de los tres personajes no cambian.
 
 Las balas detonan al acercarse a un enemigo y dañan a otros dentro del radio de
 la explosión. Las balas y las abejas atraviesan los tiles de colisión media,

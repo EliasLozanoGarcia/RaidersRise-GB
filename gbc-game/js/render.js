@@ -45,6 +45,39 @@ function drawMapTile(ctx, tx, ty, tileId, attr, hit = false, dy = 0, dx = 0) {
   ctx.restore();
 }
 
+function drawSpecialTile(ctx, cell, id, attr, hit = false) {
+  const idx = cell.ty * MAP_W + cell.tx;
+  const parts = specialFreeParts(cell.tx, cell.ty);
+  if (!parts.length) return;
+  const x = cell.tx * 8 - cam.x, y = cell.ty * 8 - cam.y;
+  ctx.save();
+  if (parts.length < 4) {
+    ctx.beginPath();
+    for (const part of parts) ctx.rect(x + part.x, y + part.y, 4, 4);
+    ctx.clip();
+  }
+  if (cell.id === 88 && id !== 88) {
+    ctx.beginPath();
+    const flipX = (cell.attr & 0x20) !== 0, flipY = (cell.attr & 0x40) !== 0;
+    const point = (px, py) => [x + (flipX ? 8 - px : px), y + (flipY ? 8 - py : py)];
+    const a = point(0, 8), b = point(8, 0), c = point(8, 8);
+    ctx.moveTo(a[0], a[1]);
+    ctx.lineTo(b[0], b[1]);
+    ctx.lineTo(c[0], c[1]);
+    ctx.closePath();
+    ctx.clip();
+  }
+  const itemImage = hit && hitImages.tileset ? hitImages.tileset : assets.tilesetImage;
+  if (!drawSpecialComposite(ctx, idx, id, attr, x, y, itemImage)) {
+    drawMapTile(ctx, cell.tx, cell.ty, id, attr);
+    if (itemsLayer[idx] >= 0 && !coinWaiting(idx)) {
+      drawMapTile(ctx, cell.tx, cell.ty, itemsLayer[idx], itemsAttrs[idx], hit,
+        tileOffY.get(idx) || 0, tileOffX.get(idx) || 0);
+    }
+  }
+  ctx.restore();
+}
+
 // ------------------------------------------------------------ HUD (3 tiles de alto, parte inferior)
 const GLYPH_COIN = PICKUP.coin, GLYPH_HEART = PICKUP.heart, GLYPH_DIGIT0 = 127; // digitos: 128-136 = 1-9, 137 = 0
 
@@ -320,19 +353,12 @@ function render() {
   ctx.clip();
   ctx.translate(shakeX, 0);
 
-  const spCells = new Set();
-  for (const p of players) {
-    if (!p.active || !p.sp) continue;
-    if (p.sp.state === "aim" && !((frame >> 3) & 1)) continue;
-    for (let r = 0; r < p.sp.h; r++) for (let c = 0; c < p.sp.w; c++) spCells.add((p.sp.ty + r) * MAP_W + p.sp.tx + c);
-  }
-
   const hitCells = new Set();
   for (const b of luckyBoxes) {
     if (!b.alive || !(b.hit > 0)) continue;
     for (let r = 0; r < 2; r++) for (let c = 0; c < 2; c++) hitCells.add((b.ty + r) * MAP_W + b.tx + c);
   }
-  const flashed = (idx) => hitCells.has(idx) || barrierHit.has(idx) || blasts.has(idx) || spCells.has(idx);
+  const flashed = (idx) => hitCells.has(idx) || barrierHit.has(idx) || blasts.has(idx);
 
   // 1. Capa de fondo (fondoLayer)
   for (let ty = firstTileY; ty <= lastTileY; ty++) {
@@ -344,7 +370,7 @@ function render() {
         if (!coinWaiting(idx) || fondoClear(idx)) ctx.drawImage(compCv, fs * 8, 0, 8, 8, tx * 8 - cam.x, ty * 8 - cam.y, 8, 8);
         continue;
       }
-      drawMapTile(ctx, tx, ty, fondoLayer[idx], fondoAttrs[idx], blasts.has(idx) || spCells.has(idx));
+      drawMapTile(ctx, tx, ty, fondoLayer[idx], fondoAttrs[idx], blasts.has(idx));
     }
   }
 
@@ -357,6 +383,24 @@ function render() {
       const slot = compSlot.get(idx);
       if (slot !== undefined && !flashed(idx) && !tileOffY.has(idx) && !hasOffX) continue;
       drawMapTile(ctx, tx, ty, itemsLayer[idx], itemsAttrs[idx], flashed(idx), tileOffY.get(idx) || 0, hasOffX ? tileOffX.get(idx) : 0);
+    }
+  }
+
+  for (const p of players) {
+    if (!p.active || p.hp <= 0 || !p.sp) continue;
+    const aiming = p.sp.state === "aim";
+    if (!aiming && (p.sp.state !== "active" || p.sp.instant)) continue;
+    const explosionId = 153 + Math.floor(p.sp.t / CFG.specialExplosionFrameTicks) % 4;
+    for (const cell of specialMarkerCells(p.sp)) {
+      if (cell.tx >= firstTileX && cell.tx <= lastTileX && cell.ty >= firstTileY && cell.ty <= lastTileY)
+        drawSpecialTile(ctx, cell, aiming ? cell.id : explosionId, aiming ? cell.attr : 0, flashed(cell.ty * MAP_W + cell.tx));
+    }
+  }
+  for (const effect of specialExplosions) {
+    const id = 153 + Math.floor(effect.age / CFG.specialExplosionFrameTicks);
+    for (const cell of effect.cells) {
+      if (cell.tx >= firstTileX && cell.tx <= lastTileX && cell.ty >= firstTileY && cell.ty <= lastTileY && specialFloor(cell.tx, cell.ty))
+        drawSpecialTile(ctx, cell, id, 0, flashed(cell.ty * MAP_W + cell.tx));
     }
   }
 
