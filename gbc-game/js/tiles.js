@@ -56,6 +56,7 @@ const COMP_SLOTS = 96; // ids 160-255 (filas 6-8 del tileset, libres)
 // Los IDs del tileset son uno menos que los numeros mostrados en Tiled.
 const PICKUP = { heart: 146, coin: 147, mana: 148, crystal: 149, shield: 150, key: 151, grenade: 152 };
 const LUCKY_DROPS = Object.values(PICKUP);
+const coinChanceTenths = () => Math.max(1, 11 - level);
 const COIN_TILE = PICKUP.coin, FALL_FRAMES = 6;
 const ALERT_CHEST = 93, ALERT_CRYSTAL = [126, 127];
 const compSlot = new Map(), compFree = [], coinAnim = new Map(), transparentTiles = new Set();

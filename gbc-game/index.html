@@ -7,7 +7,13 @@
 <style>
   html, body { margin: 0; min-height: 100%; background: #101014; color: #9aa; font: 12px/1.4 monospace; }
   body { box-sizing: border-box; min-height: 100vh; padding: 16px 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
-  canvas { width: min(80vw, 640px); height: auto; image-rendering: pixelated; image-rendering: crisp-edges; background: #000; }
+  #screen { width: min(80vw, 640px); height: auto; image-rendering: pixelated; image-rendering: crisp-edges; background: #000; }
+  #screen[data-scale="1"] { width: 160px; }
+  #screen[data-scale="2"] { width: 320px; }
+  #screen[data-scale="3"] { width: 480px; }
+  #screen[data-scale="4"] { width: 640px; }
+  #screen[data-scale="1"], #screen[data-scale="2"], #screen[data-scale="3"], #screen[data-scale="4"] { align-self: safe center; }
+  #screen-scale-control { display: flex; align-items: center; gap: 6px; }
   #info { min-height: 1.4em; max-width: 90vw; text-align: center; }
   #tuning { width: min(90vw, 900px); display: flex; flex-wrap: wrap; gap: 8px; }
   #tuning fieldset { flex: 1 1 260px; border: 1px solid #334; margin: 0; padding: 4px 8px; }
@@ -20,6 +26,15 @@
 </head>
 <body>
 <canvas id="screen"></canvas>
+<label id="screen-scale-control" for="screen-scale">Escala del juego
+  <select id="screen-scale">
+    <option value="auto">Automático</option>
+    <option value="1">1:1</option>
+    <option value="2">1:2</option>
+    <option value="3">1:3</option>
+    <option value="4">1:4</option>
+  </select>
+</label>
 <div id="info"></div>
 <div id="tuning"></div>
 <div id="help">J1: WASD + F (disparo) + G (teletransporte) &nbsp;|&nbsp; J2: flechas + "," (disparo) + "." (teletransporte) &nbsp;|&nbsp; Empuja cofres/puertas 1,5 s · P pausa · Enter reinicia</div>
@@ -27,6 +42,7 @@
 <script src="engine/gbc.js"></script>
 <script src="engine/input.js"></script>
 <script src="js/loader_dmg.js"></script>
+<script src="js/screen-scale.js"></script>
 
 <script src="js/config.js"></script>
 <script src="js/state.js"></script>

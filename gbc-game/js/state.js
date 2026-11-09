@@ -3,10 +3,11 @@
 
 // ------------------------------------------------------------ Estado del Juego
 const cam = { x: 0, y: 0 };
-let frame = 0, wave = 0, waveTimer = 0, gameOver = false, paused = false;
+let frame = 0, wave = 0, gameOver = false, paused = false;
 let stats = { kills: 0, time: 0, shots: 0 }, goSel = 0, selFrame = -1;
 
 let players = [], enemies = [], bullets = [];
+let spawnPoints = [];
 let teleportEffects = [];
 let specialExplosions = [];
 const blasts = new Map();

@@ -69,7 +69,11 @@ function cullItems() {
       }
     }
   }
-  const keep = { crystal: CFG.crystalCount, chest: CFG.chestCount, lucky: CFG.luckyBoxCount };
+  const keep = {
+    crystal: level % 3 === 0 ? CFG.crystalCount : 0,
+    chest: Math.max(1, groups.chest.length - (level - 1)),
+    lucky: Math.max(1, groups.lucky.length - (level - 1))
+  };
   for (const kind of Object.keys(groups)) {
     const list = groups[kind];
     for (let i = list.length - 1; i > 0; i--) {
@@ -78,6 +82,10 @@ function cullItems() {
     }
     for (const cells of list.slice(Math.max(0, keep[kind]))) for (const c of cells) setItemTile(c, -1);
   }
+  const coins = [];
+  for (let i = 0; i < itemsLayer.length; i++) if (itemsLayer[i] === PICKUP.coin) coins.push(i);
+  const coinCount = Math.max(1, coins.length - (level - 1));
+  for (const idx of shuffle(coins).slice(coinCount)) setItemTile(idx, -1);
 }
 
 function initInteractives() {
@@ -243,7 +251,7 @@ function moveWithDoor(p, doorCells) {
 
 function openCoinChest(chest, player) {
   chest.opened = true;
-  player.coins += 5;
+  player.coins += Math.max(1, 6 - level);
   sfx("coin");
 
   const chestCells = [];
@@ -275,7 +283,7 @@ function openCoinChest(chest, player) {
       }
     }
   }
-  spawnCoins(coinCells);
+  spawnCoins(coinCells.slice(0, Math.max(1, 13 - level)));
 }
 
 function updateInteractives() {
@@ -588,7 +596,14 @@ function checkBulletHitItems(bx, by) {
           }
         }
         const drop = findDropCell(b.tx, b.ty);
-        if (drop >= 0) setItemTile(drop, LUCKY_DROPS[rnd(LUCKY_DROPS.length)]);
+        if (drop >= 0) {
+          let prize = LUCKY_DROPS[rnd(LUCKY_DROPS.length)];
+          if (prize === PICKUP.coin && rnd(10) >= coinChanceTenths()) {
+            const others = LUCKY_DROPS.filter((item) => item !== PICKUP.coin);
+            prize = others[rnd(others.length)];
+          }
+          setItemTile(drop, prize);
+        }
         else console.warn("No hay una celda libre para el premio del lucky block.", b.tx, b.ty);
       }
       return true;

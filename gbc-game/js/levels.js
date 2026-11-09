@@ -49,7 +49,6 @@ function resetGame(keepUpgrades) {
   specialExplosions = [];
   blasts.clear();
   wave = 0;
-  waveTimer = 60;
   gameOver = false;
   stats = { kills: 0, time: 0, shots: 0 };
   goSel = 0;
@@ -59,4 +58,5 @@ function resetGame(keepUpgrades) {
   for (const p of players) unstickPlayer(p, true); // Start mal colocado (fuera del mapa/camara o sobre un muro)
   initInteractives();
   resetComposites();
+  initSpawnPoints();
 }

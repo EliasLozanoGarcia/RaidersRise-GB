@@ -52,6 +52,7 @@ function setupCamera() {
     function updateCoins() {}
     function updatePlayer(p) { p.x += 256; p.y += 256; }
     function updateEnemies() {}
+    function updateSpawnPoints() {}
   `, context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", "interactives.js"), "utf8"), context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", "main.js"), "utf8"), context);

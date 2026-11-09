@@ -39,12 +39,10 @@ const CFG = {
   specialExplosionFrameTicks: 12, // 0,2 s a ~60 actualizaciones por segundo
   volume: 0.5, // solo audio web
   nudgePixels: 3,
-  // Objetos del mapa que aparecen al cargar (el resto de ubicaciones se descarta al azar).
+  // Cristales del mapa que aparecen al cargar.
   crystalCount: 1,
-  chestCount: 4,
-  luckyBoxCount: 4,
   shieldFrames: 300, // cinco segundos a 60 actualizaciones por segundo
-  // Cantidad de enemigos por oleada: waveBase + (oleada-1) * wavePerWave, hasta waveMax.
+  // Total por oleada, repartido entre puntos normales: waveBase + (oleada-1) * wavePerWave, hasta waveMax.
   waveBase: 30,
   wavePerWave: 10,
   waveMax: 120,

@@ -104,7 +104,7 @@ function update() {
     }
   }
 
-  if (enemies.length === 0 && --waveTimer <= 0) spawnWave();
+  updateSpawnPoints();
   if (!players.some((p) => p.active && p.hp > 0)) openShop("death");
 }
 

@@ -11,7 +11,7 @@ function newPlayer(i, x, y) {
   return p;
 }
 
-function spawnEnemyAt(tileX, tileY, typeName) {
+function spawnEnemyAt(tileX, tileY, typeName, spawnPoint) {
   const type = CFG.enemyTypes[typeName];
   const box = type.size === 8 ? EBOX : { x: 2, y: 2, w: type.size - 4, h: type.size - 4 };
   for (let radius = 0; radius < Math.max(MAP_W, MAP_H); radius++) {
@@ -25,6 +25,7 @@ function spawnEnemyAt(tileX, tileY, typeName) {
           x: x << 8,
           y: y << 8,
           type: typeName,
+          spawnPoint,
           size: type.size,
           box,
           flying: type.flying,
@@ -59,47 +60,60 @@ function pickEnemyType() {
   return entries[0][0];
 }
 
-function spawnWave() {
-  wave++;
-  const cycle = ((level - 1) / layouts.length) | 0;
-  const count = Math.min(CFG.waveBase + cycle * 20 + (wave - 1) * CFG.wavePerWave, CFG.waveMax + cycle * 20);
-  let spawned = 0;
-
-  // 1. Spawn Areas Custom por tipo con parámetro de cantidad
-  if (levelLogic && levelLogic.customSpawners && levelLogic.customSpawners.length > 0) {
-    for (const zone of levelLogic.customSpawners) {
-      let zSpawned = 0;
-      const zCount = zone.count || 1;
-      for (let i = 0; i < zCount * 4 && zSpawned < zCount; i++) {
-        const tileX = (zone.x + rnd(zone.w || 16)) >> 3;
-        const tileY = (zone.y + rnd(zone.h || 16)) >> 3;
-        const px = tileX * 8, py = tileY * 8;
-        if (players.some((p) => p.active && p.hp > 0 && Math.abs((p.x >> 8) - px) < 48 && Math.abs((p.y >> 8) - py) < 48)) continue;
-        if (spawnEnemyAt(tileX, tileY, zone.type || pickEnemyType())) {
-          zSpawned++;
-          spawned++;
-        }
-      }
-    }
-  }
-
-  // 2. Mantiene el Spawn aleatorio tal como estaba
-  const areas = levelLogic && (levelLogic.spawners || levelLogic.enemies);
-  if (!areas || areas.length === 0) {
-    if (!spawned) console.warn("Este nivel no tiene áreas de spawn definidas en su archivo Logic.");
-    waveTimer = spawned ? CFG.wavePause : 30;
+function initSpawnPoints() {
+  const normal = (levelLogic && (levelLogic.spawners || levelLogic.enemies)) || [];
+  const custom = (levelLogic && levelLogic.customSpawners) || [];
+  spawnPoints = normal.map((r, index) => ({
+    x: r[0], y: r[1], w: r[2] || 16, h: r[3] || 16,
+    normalIndex: index, normalCount: normal.length
+  })).concat(custom.map((r) => ({
+    x: r.x, y: r.y, w: r.w || 16, h: r.h || 16, type: r.type, count: r.count || 1
+  })));
+  if (!spawnPoints.length) {
+    console.warn("Este nivel no tiene áreas de spawn definidas en su archivo Logic.");
     return;
   }
+  const extraCount = spawnPoints.length === 1 ? (level > 1 ? 1 : 0) : (level - 1) % spawnPoints.length;
+  const selected = new Set(shuffle(spawnPoints.map((_, i) => i)).slice(0, extraCount));
+  spawnPoints.forEach((point, i) => {
+    point.limit = selected.has(i) ? level : 1;
+    point.wave = 0;
+    point.pending = 0;
+    point.timer = 60;
+  });
+}
 
-  for (let i = 0; i < count * 4 && spawned < count; i++) {
-    const r = areas[rnd(areas.length)];
-    const tileX = (r[0] + rnd(r[2] || 16)) >> 3;
-    const tileY = (r[1] + rnd(r[3] || 16)) >> 3;
-    const px = tileX * 8, py = tileY * 8;
-    if (players.some((p) => p.active && p.hp > 0 && Math.abs((p.x >> 8) - px) < 48 && Math.abs((p.y >> 8) - py) < 48)) continue;
-    if (spawnEnemyAt(tileX, tileY, pickEnemyType())) spawned++;
+function spawnPointCount(point) {
+  if (point.count !== undefined) return point.count;
+  const cycle = Math.floor((level - 1) / layouts.length);
+  const total = Math.min(CFG.waveBase + cycle * 20 + (point.wave - 1) * CFG.wavePerWave, CFG.waveMax + cycle * 20);
+  return Math.floor(total / point.normalCount) + (point.normalIndex < total % point.normalCount ? 1 : 0);
+}
+
+function updateSpawnPoints() {
+  for (const point of spawnPoints) {
+    if (point.pending === 0 && enemies.some((e) => e.hp > 0 && e.spawnPoint === point)) continue;
+    if (point.pending === 0 && point.wave >= point.limit) continue;
+    if (point.timer > 0 && --point.timer > 0) continue;
+    if (point.pending === 0) {
+      point.wave++;
+      wave = Math.max(wave, point.wave);
+      point.pending = spawnPointCount(point);
+      if (point.pending === 0) { point.timer = CFG.wavePause; continue; }
+    }
+    const attempts = point.pending * 4;
+    for (let i = 0; i < attempts && point.pending > 0; i++) {
+      const tileX = (point.x + rnd(point.w)) >> 3, tileY = (point.y + rnd(point.h)) >> 3;
+      const px = tileX * 8, py = tileY * 8;
+      if (players.some((p) => p.active && p.hp > 0 && Math.abs((p.x >> 8) - px) < 48 && Math.abs((p.y >> 8) - py) < 48)) continue;
+      if (spawnEnemyAt(tileX, tileY, point.type || pickEnemyType(), point)) point.pending--;
+    }
+    if (point.pending > 0 && !point.warned) {
+      console.warn(`No se pudieron generar todos los enemigos del punto (${point.x}, ${point.y}); se reintentará.`);
+      point.warned = true;
+    } else if (point.pending === 0) point.warned = false;
+    point.timer = point.pending > 0 ? 30 : CFG.wavePause;
   }
-  waveTimer = spawned ? CFG.wavePause : 30;
 }
 
 function dropCoin(enemy) {
@@ -125,7 +139,10 @@ function damageEnemy(enemy, amount) {
   if (enemy.hp <= 0) return;
   enemy.hp = Math.max(0, enemy.hp - amount);
   enemy.hit = CFG.hurtFlash;
-  if (enemy.hp === 0) { if (enemy.coin) dropCoin(enemy); stats.kills++; sfx("enemyDie"); } else sfx("hit");
+  if (enemy.hp === 0) {
+    if (enemy.coin && rnd(10) < coinChanceTenths()) dropCoin(enemy);
+    stats.kills++; sfx("enemyDie");
+  } else sfx("hit");
 }
 
 function explode(cx, cy) {
@@ -684,6 +701,7 @@ function updateSpecial(p, held) {
 }
 
 function continueGame() {
+  const enemiesBeforeContinue = new Set(enemies.filter((e) => e.hp > 0).map((e) => e.spawnPoint));
   players.forEach((p, i) => {
     if (!p.active) return;
     p.hp = maxHp(p);
@@ -699,8 +717,12 @@ function continueGame() {
   enemies = [];
   bullets = [];
   specialExplosions = [];
-  wave = Math.max(0, wave - 1);
-  waveTimer = 60;
+  for (const point of spawnPoints) {
+    if (point.pending > 0 || enemiesBeforeContinue.has(point)) {
+      point.pending = spawnPointCount(point);
+      point.timer = 60;
+    }
+  }
   gameOver = false;
   goSel = 0;
 }

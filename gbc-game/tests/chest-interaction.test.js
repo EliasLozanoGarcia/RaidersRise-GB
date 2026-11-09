@@ -17,6 +17,7 @@ function setup() {
     const itemsLayer = Array(MAP_W * MAP_H).fill(-1);
     const itemsAttrs = Array(MAP_W * MAP_H).fill(0);
     const ALERT_CHEST = 93;
+    let level = 1;
     const players = [
       { id: 0, x: 34 << 8, y: 39 << 8, active: true, hp: 4, coins: 0 },
       { id: 1, x: 42 << 8, y: 39 << 8, active: false, hp: 4, coins: 0 }

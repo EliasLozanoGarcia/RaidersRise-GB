@@ -12,6 +12,11 @@ python -m http.server 8000 --directory .\gbc-game
 Luego abre `http://localhost:8000`. El navegador bloquea la carga de los CSV
 cuando se abre la pagina directamente con `file://`.
 
+El selector **Escala del juego** permite elegir entre el tamaño automático
+(el predeterminado) y las escalas fijas 1:1, 1:2, 1:3 y 1:4. Las escalas fijas
+mantienen píxeles enteros y pueden desbordar la ventana si esta es estrecha;
+la resolución interna sigue siendo 160 × 144.
+
 ## Controles
 
 | Accion | Jugador 1 | Jugador 2 |
@@ -70,16 +75,41 @@ proyectil. Los valores y ritmos de daño de los tres personajes no cambian.
 Las balas detonan al acercarse a un enemigo y dañan a otros dentro del radio de
 la explosión. Las balas y las abejas atraviesan los tiles de colisión media,
 pero no los sólidos; los personajes y enemigos terrestres no pueden atravesar
-ninguno de los dos. Empujar un cofre durante 1,5 segundos suma cinco monedas al
+ninguno de los dos. Empujar un cofre durante 1,5 segundos suma monedas al
 inventario y deja monedas recogibles sobre el cofre y en celdas transitables
 cercanas. Los enemigos derrotados también pueden soltar monedas: camina sobre
 ellas para recogerlas; el total aparece en el HUD. Los enemigos varían
 ligeramente su velocidad, vagan cuando están lejos y evitan amontonarse.
 
+Cada punto de aparición tiene sus propias oleadas: la siguiente comienza tras
+eliminar a todos los enemigos de ese punto, sin esperar a los demás. En el
+nivel 1 cada punto tiene una oleada; en el nivel 2 se elige uno al azar para
+tener dos y en el nivel 3 se eligen dos para tener tres. En niveles superiores
+se eligen `(nivel - 1) % número de puntos`, con tantas oleadas como el nivel;
+así nunca reciben extras todos a la vez. Si solo hay un punto, este recibe las
+oleadas extra. Un mapa sin puntos no genera enemigos. Los puntos normales se
+reparten el total configurado en el panel; los personalizados conservan su
+tipo y cantidad. Los intentos bloqueados se repiten cuando haya espacio.
+
+En el primer nivel aparecen todos los cofres, cajas y monedas del mapa. Por
+cada nivel posterior se elimina uno de cada tipo al azar, hasta dejar uno si
+el mapa contiene alguno. Cada cofre entrega una moneda directa menos por nivel
+(de cinco hasta un mínimo de una) y deja una moneda recogible menos (de hasta
+doce hasta un mínimo de una). Los enemigos que pueden soltar moneda pasan de
+un 100 % de probabilidad en el nivel 1 a un 10 % menos por nivel, con mínimo
+del 10 %. Al continuar tras morir se reinician las oleadas que estaban en
+curso; las ya completadas no se repiten.
+
+Los cristales grandes del mapa aparecen solo en los niveles 3, 6, 9, etc.,
+si el mapa tiene ubicaciones de cristal. El límite configurado sigue siendo de
+uno por defecto; los cristales recogibles de las lucky blocks no cambian.
+
 Las antiguas cajas de mana son **lucky blocks**: tras tres impactos sueltan
-al azar, con la misma probabilidad, un corazon (+1 vida hasta el maximo), una
+al azar un corazon (+1 vida hasta el maximo), una
 moneda, mana (+10 % de la barra), un cristal, un escudo, una llave o una
-granada. El escudo protege de enemigos, pinchos y especiales durante 5 segundos;
+granada. En el primer nivel los premios son equiprobables; en niveles posteriores
+la probabilidad de moneda se reduce con el mismo factor que la de los enemigos,
+redistribuyendo el resto entre los otros premios. El escudo protege de enemigos, pinchos y especiales durante 5 segundos;
 recoger otro reinicia su duracion. Las llaves y granadas se acumulan pero aun no
 tienen efecto. Cada jugador tiene su propio inventario, visible en el HUD;
 monedas, cristales, llaves y granadas se conservan al avanzar de nivel.

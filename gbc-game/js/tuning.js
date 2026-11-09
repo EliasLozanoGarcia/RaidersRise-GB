@@ -37,7 +37,7 @@
   };
   const waves = document.createElement("fieldset");
   const wl = document.createElement("legend");
-  wl.textContent = "Enemigos por oleada";
+  wl.textContent = "Enemigos por oleada (repartidos entre puntos normales)";
   waves.appendChild(wl);
   const WAVE_KEYS = { waveBase: "enemigos oleada 1", wavePerWave: "extra por oleada", waveMax: "maximo por oleada" };
   for (const k of Object.keys(WAVE_KEYS)) addSlider(waves, CFG, k, WAVE_KEYS[k], 300);
@@ -45,4 +45,3 @@
   addGroup("Juego", CFG, "");
   for (const t of Object.keys(CFG.enemyTypes)) addGroup("Enemigo: " + t, CFG.enemyTypes[t], "");
 })();
-
