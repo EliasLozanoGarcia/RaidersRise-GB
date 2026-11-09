@@ -73,10 +73,8 @@ function initSpawnPoints() {
     console.warn("Este nivel no tiene áreas de spawn definidas en su archivo Logic.");
     return;
   }
-  const extraCount = spawnPoints.length === 1 ? (level > 1 ? 1 : 0) : (level - 1) % spawnPoints.length;
-  const selected = new Set(shuffle(spawnPoints.map((_, i) => i)).slice(0, extraCount));
-  spawnPoints.forEach((point, i) => {
-    point.limit = selected.has(i) ? level : 1;
+  spawnPoints.forEach((point) => {
+    point.limit = wavesPerPoint(level);
     point.wave = 0;
     point.pending = 0;
     point.timer = 60;
@@ -85,7 +83,7 @@ function initSpawnPoints() {
 
 function spawnPointCount(point) {
   if (point.count !== undefined) return point.count;
-  const cycle = Math.floor((level - 1) / layouts.length);
+  const cycle = Math.floor((level - 1) / 9);
   const total = Math.min(CFG.waveBase + cycle * 20 + (point.wave - 1) * CFG.wavePerWave, CFG.waveMax + cycle * 20);
   return Math.floor(total / point.normalCount) + (point.normalIndex < total % point.normalCount ? 1 : 0);
 }
@@ -236,7 +234,7 @@ function updateBee(e, target) {
     e.turn = rnd(11) - 5;
   }
   let desired = e.heading;
-  const chase = target && target[0] * target[0] + target[1] * target[1] <= (CFG.chaseRange * 8 * 2) ** 2;
+  const chase = target && target[0] * target[0] + target[1] * target[1] <= (chaseRangePixels() * 2) ** 2;
   if (chase) {
     const toward = atan2b(target[1], target[0]);
     const diff = ((toward - e.heading + 128) & 255) - 128;
@@ -252,6 +250,8 @@ function updateBee(e, target) {
   e.dir = dirFromAngle(atan2b(vy, vx));
 }
 
+const chaseRangePixels = () => mulf(CFG.chaseRange * 8, aggressionMultiplier(level));
+
 function updateEnemies() {
   const targets = players.filter((p) => p.active && p.hp > 0);
   for (const e of enemies) {
@@ -266,7 +266,7 @@ function updateEnemies() {
 
     e.moving = false;
     if (e.ai === "fly") { updateBee(e, target); continue; }
-    const chaseRange = CFG.chaseRange * 8;
+    const chaseRange = chaseRangePixels();
     const speedScale = mulf(e.speedScale, e.speedMul);
     if (!target || nearest > chaseRange * chaseRange) {
       if (e.wanderTimer <= 0) {

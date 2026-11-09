@@ -66,6 +66,8 @@ window.DMGLoader = (function () {
     init: async function () {
       const [
         tilesetImage,
+        desertTileset,
+        snowTileset,
         playerImage,
         kurtImage,
         skreekImage,
@@ -84,6 +86,8 @@ window.DMGLoader = (function () {
         kurtDashImage
       ] = await Promise.all([
         loadImage("assets/tileset_GBC_Urban.png"),
+        loadImage("assets/tileset_GBC_Desert.png"),
+        loadImage("assets/tileset_GBC_Snow.png"),
         loadImage("assets/Kathy_Sprites.png"),
         loadImage("assets/Kurt_Sprites.png"),
         loadImage("assets/Skreel_Sprites.png"),
@@ -154,6 +158,7 @@ window.DMGLoader = (function () {
 
       return {
         tilesetImage,
+        biomeTilesets: [tilesetImage, desertTileset, snowTileset],
         playerImage,
         kurtImage,
         skreekImage,

@@ -49,6 +49,17 @@ function setItemTile(idx, gid, attr = 0) {
   if (needsComposite(gid) || fondoClear(idx)) setComposite(idx, 0);
 }
 
+function setFloorTile(idx, gid, attr = 0) {
+  fondoLayer[idx] = gid;
+  fondoAttrs[idx] = attr;
+  releaseComposite(idx);
+  syncMapCell(idx);
+  if (needsComposite(itemsLayer[idx]) || fondoClear(idx)) {
+    const coin = coinAnim.get(idx);
+    setComposite(idx, coin && coin.fall ? -1 : 0, !!coin && !coin.fall);
+  }
+}
+
 // ------------------------------------------------------------ Tiles compuestos (suelo + tile con transparencia)
 // Los items con transparencia, las monedas y los avisos se dibujan como un unico tile pre-compuesto
 // (suelo + item) en un buffer de tiles; el hueco se libera cuando el item desaparece.
@@ -68,6 +79,12 @@ function initComposites() {
   compCv.width = COMP_SLOTS * 8;
   compCv.height = 8;
   compCtx = compCv.getContext("2d");
+  scanTilesetTransparency();
+  resetComposites();
+}
+
+function scanTilesetTransparency() {
+  transparentTiles.clear();
   const ts = assets.tilesetImage;
   const cv = document.createElement("canvas");
   cv.width = ts.width;
@@ -82,7 +99,6 @@ function initComposites() {
     for (let y = 0; y < 8 && !clear; y++) for (let x = 0; x < 8; x++) if (px[((y0 + y) * cv.width + x0 + x) * 4 + 3] < 255) { clear = true; break; }
     if (clear) transparentTiles.add(id);
   }
-  resetComposites();
 }
 
 const needsComposite = (id) => id >= 0 && compCtx !== null &&

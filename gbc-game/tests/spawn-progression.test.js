@@ -13,16 +13,17 @@ function setup() {
       crystalCount: 1, hurtFlash: 6, enemyTypes: {
         slime: { weight: 1, hp: 2, size: 8, speed: 256 }
       }, speedJitter: 0 };
-    let level = 1, layouts = [1,2,3,4,5,6,7], levelLogic = null;
+    let level = 1;
     let stats = { kills: 0 }, gameOver = false, goSel = 0;
     let enemies = [], players = [], bullets = [], specialExplosions = [], spawnPoints = [], wave = 0;
     function sfx() {}
   `, context);
-  for (const file of ["utils.js", "tiles.js", "physics.js", "interactives.js", "entities.js"]) {
+  for (const file of ["utils.js", "progression.js", "tiles.js", "physics.js", "interactives.js", "levels.js", "entities.js"]) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8"), context);
   }
   vm.runInContext(`
     MAP_W = 20; MAP_H = 20;
+    layouts = [1,2,3,4,5,6,7];
     itemsLayer = Array(400).fill(-1); itemsAttrs = Array(400).fill(0);
     fondoLayer = Array(400).fill(49); fondoAttrs = Array(400).fill(0);
     setItemTile = (idx, id, attr = 0) => { itemsLayer[idx] = id; itemsAttrs[idx] = attr; };
@@ -37,36 +38,140 @@ function setup() {
   return (code) => vm.runInContext(code, context);
 }
 
-test("reparte oleadas seleccionadas por nivel sin asignarlas a todos a la vez", () => {
+test("los limites de bioma, oleadas, agresividad y cristal siguen las tablas", () => {
   const run = setup();
-  for (let level = 1; level <= 12; level++) {
+  for (const [level, biome, waves, aggression, crystal] of [
+    [1,0,1,256,false], [2,0,1,256,false], [3,0,2,320,true],
+    [5,0,2,320,false], [6,0,3,384,true], [8,0,3,384,false],
+    [9,0,4,512,true], [10,0,4,512,false], [11,1,4,512,false],
+    [12,1,5,512,true], [15,1,6,512,true], [20,1,7,512,false],
+    [21,2,8,512,true], [30,2,11,512,true], [31,0,11,512,false]
+  ]) {
+    assert.equal(run(`biomeIndex(${level})`), biome);
+    assert.equal(run(`wavesPerPoint(${level})`), waves);
+    assert.equal(run(`aggressionMultiplier(${level})`), aggression);
+    assert.equal(run(`isCrystalLevel(${level})`), crystal);
+  }
+  run("CFG.chaseRange = 10");
+  for (const [level, pixels] of [[1,80], [3,100], [6,120], [9,160]]) {
+    assert.equal(run(`level = ${level}; chaseRangePixels()`), pixels);
+  }
+});
+
+test("elige mapas aptos y no cuenta cofres solapados dos veces", () => {
+  const run = setup();
+  run(`
+    function layout(chestColumns, crystal) {
+      const w = 12, h = 5, items = Array(w * h).fill(-1);
+      for (let x = 0; x < chestColumns; x++) { items[x] = 29; items[w + x] = 61; }
+      if (crystal) { items[3*w] = 30; items[3*w+1] = 31; items[4*w] = 62; items[4*w+1] = 63; }
+      return { w, h, items, itemsAttrs: Array(w*h).fill(0), fondo: Array(w*h).fill(49), fondoAttrs: Array(w*h).fill(0) };
+    }
+    const overlap = layout(3, false);
+    const ordinary = layout(6, false);
+    const crystalMap = layout(6, false);
+    crystalMap.h = 6;
+    crystalMap.items.push(...Array(12).fill(-1));
+    crystalMap.fondo.push(...Array(12).fill(49));
+    crystalMap.fondoAttrs.push(...Array(12).fill(0));
+    crystalMap.itemsAttrs.push(...Array(12).fill(0));
+    [crystalMap.items[36], crystalMap.items[37], crystalMap.items[48], crystalMap.items[49], crystalMap.items[60], crystalMap.items[61]] = [30,31,62,63,94,95];
+    layouts = [overlap, ordinary, crystalMap];
+  `);
+  assert.equal(run("findMapRewards(overlap.items, overlap.w, overlap.h).chest.length"), 1);
+  assert.equal(run("level = 1; pickLevel(); initialItemsLayer[2]"), 29);
+  assert.equal(run("level = 3; pickLevel(); initialItemsLayer[60]"), 94);
+  run("layouts = [ordinary]; level = 3");
+  assert.throws(() => run("pickLevel()"), /No hay mapas compatibles/);
+});
+
+test("desbloquea trampas por nivel y elimina los dos lados de cada mecanismo", () => {
+  const run = setup();
+  run(`
+    function hazardMap() {
+      itemsLayer = Array(400).fill(-1); itemsAttrs = Array(400).fill(0);
+      fondoLayer = Array(400).fill(49); fondoAttrs = Array(400).fill(0);
+      itemsLayer[21] = 14; fondoLayer[23] = 16;
+      itemsLayer[41] = 82; itemsLayer[42] = 82; itemsAttrs[42] = 32;
+      itemsLayer[61] = 114; itemsLayer[62] = 114;
+      itemsLayer[45] = 74; itemsLayer[46] = 74; itemsAttrs[46] = 32;
+      itemsLayer[65] = 106; itemsLayer[66] = 106;
+      itemsLayer[50] = 19;
+      syncMapCell = () => {};
+      initInteractives();
+    }
+  `);
+  for (const [level, spikes, walls] of [[1,0,0],[3,0,0],[4,2,0],[6,2,0],[7,2,1],[9,2,1]]) {
+    run(`level = ${level}; hazardMap()`);
+    assert.equal(run("spikes.length"), spikes);
+    assert.equal(run("lowerWalls.length"), walls);
+    assert.equal(run("buttons.length"), walls);
+    assert.equal(run("itemsLayer[50]"), 19);
+    if (!spikes) {
+      assert.equal(run("itemsLayer[21]"), -1);
+      assert.equal(run("fondoLayer[23]"), 49);
+    }
+    if (!walls) assert.equal(run("[41,42,61,62,45,46,65,66].every(i => itemsLayer[i] === -1)"), true);
+  }
+  const combinations = new Set();
+  for (let seed = 1; seed <= 100; seed++) {
+    run(`rngState = ${seed}; level = 10; hazardMap()`);
+    combinations.add(run("`${spikes.length},${lowerWalls.length}`"));
+    assert.equal(run("lowerWalls.length === buttons.length"), true);
+  }
+  assert.deepEqual(combinations, new Set(["0,0", "0,1", "2,0", "2,1"]));
+});
+
+test("los pinchos del fondo no borran ni ocultan los objetos de la capa superior", () => {
+  const run = setup();
+  run(`
+    syncMapCell = () => {};
+    itemsLayer[21] = 27; itemsLayer[22] = 28;
+    itemsLayer[41] = 59; itemsLayer[42] = 60;
+    fondoLayer[21] = 14; level = 4;
+    initInteractives();
+  `);
+  assert.equal(run("luckyBoxes.length"), 1);
+  run("updateSpikeTile(spikes[0], 21, 16)");
+  assert.equal(run("itemsLayer[21]"), 27);
+  assert.equal(run("fondoLayer[21]"), 16);
+  run("level = 1; initInteractives()");
+  assert.equal(run("luckyBoxes.length"), 1);
+  assert.equal(run("itemsLayer[21]"), 27);
+  assert.equal(run("fondoLayer[21]"), 49);
+});
+
+test("cada punto recibe el numero de oleadas indicado por el nivel", () => {
+  const run = setup();
+  for (let level = 1; level <= 18; level++) {
     run(`level = ${level}; initSpawnPoints()`);
-    const selected = (level - 1) % 4;
-    assert.equal(run("spawnPoints.filter(p => p.limit > 1).length"), selected);
-    assert.equal(run("spawnPoints.every(p => p.limit === 1 || p.limit === level)"), true);
+    assert.equal(run("spawnPoints.every(p => p.limit === wavesPerPoint(level))"), true);
+    assert.equal(run("spawnPoints[0].limit"), 1 + Math.floor(level / 3));
   }
   run("levelLogic.spawners = [[0,0,8,8]]; level = 6; initSpawnPoints()");
-  assert.equal(run("spawnPoints[0].limit"), 6);
+  assert.equal(run("spawnPoints[0].limit"), 3);
   run("levelLogic.spawners = []; initSpawnPoints()");
   assert.equal(run("spawnPoints.length"), 0);
 });
 
 test("cada punto avanza independientemente y deja de generar tras su ultima oleada", () => {
   const run = setup();
-  run("level = 2; initSpawnPoints(); for(let i=0;i<60;i++) updateSpawnPoints()");
+  run("level = 3; initSpawnPoints(); for(let i=0;i<60;i++) updateSpawnPoints()");
   assert.equal(run("enemies.length"), 30);
   assert.equal(run("spawnPoints.filter(p => p.wave === 1).length"), 4);
   run(`
-    const selected = spawnPoints.find(p => p.limit === 2);
+    const selected = spawnPoints[0];
     enemies.forEach(e => { if (e.spawnPoint === selected) e.hp = 0; });
     updateSpawnPoints(); updateSpawnPoints();
   `);
   assert.equal(run("selected.wave"), 2);
   assert.equal(run("enemies.filter(e => e.hp > 0 && e.spawnPoint !== selected).length"), 22);
   assert.equal(run("enemies.filter(e => e.hp > 0 && e.spawnPoint === selected).length"), 10);
+  run("enemies.forEach(e => e.hp = 0); for(let i=0;i<2;i++) updateSpawnPoints()");
+  assert.equal(run("spawnPoints.every(p => p.wave === 2)"), true);
   run("enemies.forEach(e => e.hp = 0); for(let i=0;i<100;i++) updateSpawnPoints()");
   assert.equal(run("enemies.filter(e => e.hp > 0).length"), 0);
-  assert.equal(run("spawnPoints.reduce((n,p) => n+p.wave,0)"), 5);
+  assert.equal(run("spawnPoints.reduce((n,p) => n+p.wave,0)"), 8);
 });
 
 test("los spawns personalizados respetan su tipo y cantidad de forma independiente", () => {
@@ -124,7 +229,7 @@ test("al continuar se reinician solamente las oleadas que estaban en curso", () 
   assert.equal(run("enemies.length"), 22);
 });
 
-test("conserva todos los recursos en nivel 1 y reduce hasta un minimo de uno", () => {
+test("elige uno o dos cofres, con uno extra en niveles de cristal y sin reducir las cajas", () => {
   const run = setup();
   run(`
     function put(x, y, ids) {
@@ -141,10 +246,12 @@ test("conserva todos los recursos en nivel 1 y reduce hasta un minimo de uno", (
   `);
   for (const [level, count] of [[1,5],[2,4],[4,2],[5,1],[50,1]]) {
     run(`level = ${level}; buildItems(); cullItems()`);
-    assert.equal(run("itemsLayer.filter(i => i === 27).length"), count);
-    assert.equal(run("itemsLayer.filter(i => i === 29).length"), count * 2);
+    assert.equal(run("itemsLayer.filter(i => i === 27).length"), 5);
+    assert.equal(run("[2,4].includes(itemsLayer.filter(i => i === 29).length)"), true);
     assert.equal(run("itemsLayer.filter(i => i === PICKUP.coin).length"), count);
   }
+  run("level = 3; buildItems(); cullItems()");
+  assert.equal(run("[4,6].includes(itemsLayer.filter(i => i === 29).length)"), true);
   run("itemsLayer.fill(-1); cullItems()");
   assert.equal(run("itemsLayer.filter(i => i >= 0).length"), 0);
 });
@@ -174,6 +281,22 @@ test("los cristales grandes aparecen solo cada tres niveles y respetan el limite
   assert.equal(run("itemsLayer.filter(i => i === 30).length"), 0);
   run("level = 15; itemsLayer.fill(-1); cullItems()");
   assert.equal(run("itemsLayer.some(i => i >= 0)"), false);
+});
+
+test("extraer un cristal requiere 270 ticks y no entrega monedas", () => {
+  const run = setup();
+  run(`
+    players = [{ active: true, hp: 3, crystals: 0, coins: 7 }];
+    playerPushing = p => p.active;
+    crystals = [{ tx: 4, ty: 4, pushTime: 0, mined: false }];
+    for (let i = 0; i < 269; i++) updateInteractives();
+  `);
+  assert.equal(run("crystals[0].mined"), false);
+  assert.equal(run("players[0].crystals"), 0);
+  run("updateInteractives()");
+  assert.equal(run("crystals[0].mined"), true);
+  assert.equal(run("players[0].crystals"), 1);
+  assert.equal(run("players[0].coins"), 7);
 });
 
 test("los cofres reducen monedas directas y recogibles sin afectar al minimo", () => {
@@ -214,4 +337,8 @@ test("las cajas conservan premio y reducen la probabilidad de moneda", () => {
   assert.equal(run("level = 1; breakBox([10000, 65535])"), 147);
   assert.equal(run("level = 10; breakBox([10000, 0])"), 147);
   assert.equal(run("level = 10; breakBox([10000, 65535, 0])"), 146);
+  assert.equal(run("level = 10; breakBox([20000])"), 148);
+  for (const value of [0, 14000, 27000, 40000, 53000, 65535]) {
+    assert.notEqual(run(`level = 10; breakBox([10000, 65535, ${value}])`), 148);
+  }
 });

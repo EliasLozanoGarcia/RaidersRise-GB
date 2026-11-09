@@ -46,33 +46,38 @@ function applyWallStage(w, g) {
   }
 }
 
-// Las posiciones de la capa Items son candidatas: al cargar se eligen al azar solo algunas.
-function cullItems() {
+function findMapRewards(items, width, height) {
   const groups = { crystal: [], chest: [], lucky: [] };
-  const at = (i) => itemsLayer[i];
+  const at = (i) => items[i];
   const usedChest = new Set();
   
-  for (let ty = 0; ty < MAP_H - 1; ty++) {
-    for (let tx = 0; tx < MAP_W - 1; tx++) {
-      const i = ty * MAP_W + tx;
+  for (let ty = 0; ty < height - 1; ty++) {
+    for (let tx = 0; tx < width - 1; tx++) {
+      const i = ty * width + tx;
       const t = at(i);
       
-      if (t === 27 && at(i + 1) === 28 && at(i + MAP_W) === 59 && at(i + MAP_W + 1) === 60) {
-        groups.lucky.push([i, i + 1, i + MAP_W, i + MAP_W + 1]);
-      } else if (!usedChest.has(i) && t === 29 && at(i + 1) === 29 && at(i + MAP_W) === 61 && at(i + MAP_W + 1) === 61) {
+      if (t === 27 && at(i + 1) === 28 && at(i + width) === 59 && at(i + width + 1) === 60) {
+        groups.lucky.push([i, i + 1, i + width, i + width + 1]);
+      } else if (!usedChest.has(i) && t === 29 && at(i + 1) === 29 && at(i + width) === 61 && at(i + width + 1) === 61) {
         usedChest.add(i);
         usedChest.add(i + 1);
-        groups.chest.push([i, i + 1, i + MAP_W, i + MAP_W + 1]);
-      } else if (t === 30 && ty + 2 < MAP_H && at(i + 1) === 31 && at(i + MAP_W) === 62 && at(i + MAP_W + 1) === 63 &&
-                 at(i + MAP_W * 2) === 94 && at(i + MAP_W * 2 + 1) === 95) {
-        groups.crystal.push([i, i + 1, i + MAP_W, i + MAP_W + 1, i + MAP_W * 2, i + MAP_W * 2 + 1]);
+        groups.chest.push([i, i + 1, i + width, i + width + 1]);
+      } else if (t === 30 && ty + 2 < height && at(i + 1) === 31 && at(i + width) === 62 && at(i + width + 1) === 63 &&
+                 at(i + width * 2) === 94 && at(i + width * 2 + 1) === 95) {
+        groups.crystal.push([i, i + 1, i + width, i + width + 1, i + width * 2, i + width * 2 + 1]);
       }
     }
   }
+  return groups;
+}
+
+// Las posiciones de la capa Items son candidatas: al cargar se eligen al azar solo algunas.
+function cullItems() {
+  const groups = findMapRewards(itemsLayer, MAP_W, MAP_H);
   const keep = {
-    crystal: level % 3 === 0 ? CFG.crystalCount : 0,
-    chest: Math.max(1, groups.chest.length - (level - 1)),
-    lucky: Math.max(1, groups.lucky.length - (level - 1))
+    crystal: isCrystalLevel(level) ? CFG.crystalCount : 0,
+    chest: 1 + rnd(2) + (isCrystalLevel(level) ? 1 : 0),
+    lucky: groups.lucky.length
   };
   for (const kind of Object.keys(groups)) {
     const list = groups[kind];
@@ -108,12 +113,14 @@ function initInteractives() {
       const ft = fondoLayer[idx];
 
       // Pinchos (14, 15, 16) en cualquier capa
-      if (t === 14 || t === 15 || t === 16 || ft === 14 || ft === 15 || ft === 16) {
+      const itemSpike = t === 14 || t === 15 || t === 16;
+      const floorSpike = ft === 14 || ft === 15 || ft === 16;
+      if (itemSpike || floorSpike) {
         const st = (t === 16 || ft === 16) ? 1 : (t === 15 || ft === 15) ? 2 : 0;
-        spikes.push({ tx, ty, t: 0, state: st });
+        spikes.push({ tx, ty, t: 0, state: st, itemSpike, floorSpike });
       }
       // Lucky block
-      else if (t === 27 && tx + 1 < MAP_W && ty + 1 < MAP_H) {
+      if (t === 27 && tx + 1 < MAP_W && ty + 1 < MAP_H) {
         luckyBoxes.push({ tx, ty, hp: 3, alive: true });
       }
       // Cofre de monedas (permite adyacentes validando que no sea el lado derecho de otro)
@@ -214,6 +221,23 @@ function initInteractives() {
       }
     }
   }
+  const useSpikes = level >= 4 && (level < 10 || rnd(2) === 1);
+  const useWalls = level >= 7 && (level < 10 || rnd(2) === 1) && (lowerWalls.length === 0 || buttons.length > 0);
+  if (!useSpikes) {
+    for (const s of spikes) {
+      const idx = s.ty * MAP_W + s.tx;
+      if (s.itemSpike) setItemTile(idx, -1);
+      if (s.floorSpike) setFloorTile(idx, 49);
+    }
+    spikes = [];
+  }
+  if (!useWalls) {
+    for (const w of lowerWalls) for (const cell of w.cells) setItemTile(cell.idx, -1);
+    for (const b of buttons) for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++)
+      setItemTile((b.ty + y) * MAP_W + b.tx + x, -1);
+    lowerWalls = [];
+    buttons = [];
+  }
 }
 
 function playerPushing(p, box, upOnly = false, mark = true) {
@@ -286,6 +310,11 @@ function openCoinChest(chest, player) {
   spawnCoins(coinCells.slice(0, Math.max(1, 13 - level)));
 }
 
+function updateSpikeTile(spike, idx, tile) {
+  if (spike.itemSpike) setItemTile(idx, tile, itemsAttrs[idx]);
+  if (spike.floorSpike) setFloorTile(idx, tile, fondoAttrs[idx]);
+}
+
 function updateInteractives() {
   if (wallShake > 0) wallShake--;
   for (const p of players) { p.pushing = false; p.pushAnim = null; p.pushDoorCells = null; }
@@ -300,7 +329,7 @@ function updateInteractives() {
     if (s.state === 0 && s.t >= 180) {
       s.state = 1;
       s.t = 0;
-      setItemTile(idx, 16);
+      updateSpikeTile(s, idx, 16);
     } else if (s.state === 1) {
       const sBox = { x: s.tx * 8, y: s.ty * 8, w: 8, h: 8 };
       for (const p of players) {
@@ -320,12 +349,12 @@ function updateInteractives() {
       if (s.t >= 60) {
         s.state = 2;
         s.t = 0;
-        setItemTile(idx, 15);
+        updateSpikeTile(s, idx, 15);
       }
     } else if (s.state === 2 && s.t >= 18) {
       s.state = 0;
       s.t = 0;
-      setItemTile(idx, 14);
+      updateSpikeTile(s, idx, 14);
     }
   }
 
@@ -599,7 +628,7 @@ function checkBulletHitItems(bx, by) {
         if (drop >= 0) {
           let prize = LUCKY_DROPS[rnd(LUCKY_DROPS.length)];
           if (prize === PICKUP.coin && rnd(10) >= coinChanceTenths()) {
-            const others = LUCKY_DROPS.filter((item) => item !== PICKUP.coin);
+            const others = LUCKY_DROPS.filter((item) => item !== PICKUP.coin && item !== PICKUP.mana);
             prize = others[rnd(others.length)];
           }
           setItemTile(drop, prize);

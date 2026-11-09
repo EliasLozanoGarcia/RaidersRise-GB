@@ -82,34 +82,44 @@ ellas para recogerlas; el total aparece en el HUD. Los enemigos varían
 ligeramente su velocidad, vagan cuando están lejos y evitan amontonarse.
 
 Cada punto de aparición tiene sus propias oleadas: la siguiente comienza tras
-eliminar a todos los enemigos de ese punto, sin esperar a los demás. En el
-nivel 1 cada punto tiene una oleada; en el nivel 2 se elige uno al azar para
-tener dos y en el nivel 3 se eligen dos para tener tres. En niveles superiores
-se eligen `(nivel - 1) % número de puntos`, con tantas oleadas como el nivel;
-así nunca reciben extras todos a la vez. Si solo hay un punto, este recibe las
-oleadas extra. Un mapa sin puntos no genera enemigos. Los puntos normales se
-reparten el total configurado en el panel; los personalizados conservan su
-tipo y cantidad. Los intentos bloqueados se repiten cuando haya espacio.
+eliminar a todos los enemigos de ese punto, sin esperar a los demás. Cada punto
+tiene una oleada en los niveles 1–2, dos en 3–5, tres en 6–8 y cuatro en
+9–11; después se añade otra cada tres niveles. El radio de persecución es 1×
+en niveles 1–2, 1,25× en 3–5, 1,5× en 6–8 y 2× desde el 9. Un mapa sin
+puntos no genera enemigos. Los puntos normales se reparten el total configurado
+en el panel; los personalizados conservan su tipo y cantidad. Los intentos
+bloqueados se repiten cuando haya espacio.
 
-En el primer nivel aparecen todos los cofres, cajas y monedas del mapa. Por
-cada nivel posterior se elimina uno de cada tipo al azar, hasta dejar uno si
-el mapa contiene alguno. Cada cofre entrega una moneda directa menos por nivel
+Los mapas se barajan independientemente del bioma: Urban se usa en los niveles
+1–10, Desert en 11–20 y Snow en 21–30, repitiendo el ciclo. Puertas y bloques
+están disponibles desde el principio, pinchos desde el nivel 4 y botones con
+muros bajables desde el 7. Desde el 10 se elige aleatoriamente si aparece cada
+tipo de trampa; al desactivar un muro también se retira su botón.
+
+Cada nivel contiene uno o dos cofres elegidos al azar, más uno adicional en
+los niveles de cristal. Se seleccionan mapas con suficientes ubicaciones y,
+en niveles de cristal, con al menos un cristal. Las cajas de mana del mapa no
+disminuyen con el nivel; las monedas colocadas en el mapa disminuyen una por
+nivel hasta dejar una si había alguna. Cada cofre entrega una moneda directa menos por nivel
 (de cinco hasta un mínimo de una) y deja una moneda recogible menos (de hasta
 doce hasta un mínimo de una). Los enemigos que pueden soltar moneda pasan de
 un 100 % de probabilidad en el nivel 1 a un 10 % menos por nivel, con mínimo
 del 10 %. Al continuar tras morir se reinician las oleadas que estaban en
 curso; las ya completadas no se repiten.
 
-Los cristales grandes del mapa aparecen solo en los niveles 3, 6, 9, etc.,
-si el mapa tiene ubicaciones de cristal. El límite configurado sigue siendo de
-uno por defecto; los cristales recogibles de las lucky blocks no cambian.
+Los cristales grandes del mapa aparecen solo en los niveles 3, 6, 9, etc.
+Para extraerlos hay que empujarlos durante 4,5 segundos mientras se sobrevive a
+los enemigos existentes; no es obligatorio extraerlos para salir ni modifican
+los precios de la tienda. El límite configurado sigue siendo de uno por defecto;
+los cristales recogibles de las lucky blocks no cambian.
 
 Las antiguas cajas de mana son **lucky blocks**: tras tres impactos sueltan
 al azar un corazon (+1 vida hasta el maximo), una
 moneda, mana (+10 % de la barra), un cristal, un escudo, una llave o una
 granada. En el primer nivel los premios son equiprobables; en niveles posteriores
 la probabilidad de moneda se reduce con el mismo factor que la de los enemigos,
-redistribuyendo el resto entre los otros premios. El escudo protege de enemigos, pinchos y especiales durante 5 segundos;
+redistribuyendo el resto entre los premios que no son monedas ni mana, para
+mantener la probabilidad de mana. El escudo protege de enemigos, pinchos y especiales durante 5 segundos;
 recoger otro reinicia su duracion. Las llaves y granadas se acumulan pero aun no
 tienen efecto. Cada jugador tiene su propio inventario, visible en el HUD;
 monedas, cristales, llaves y granadas se conservan al avanzar de nivel.
@@ -119,7 +129,7 @@ Los numeros de Tiled 147-153 corresponden a los IDs internos 146-152.
 
 - `index.html` carga el motor, los controles, `js/loader_dmg.js` y `js/game.js`.
 - `engine/gbc.js` conserva el motor de colisiones y el renderizador retro anterior.
-- `assets/tileset_GBC_Urban.png`, `assets/Kathy_Sprites.png` y
+- Los tilesets Urban, Desert y Snow, `assets/Kathy_Sprites.png` y
   `assets/Teleport_GBC.png` son copias directas de los PNG de `ART/`; se dibujan
   sin reducir ni cambiar sus colores. Los enemigos se dibujan desde
   `assets/enemies_run.png`.
