@@ -67,7 +67,8 @@ function initSpawnPoints() {
     x: r[0], y: r[1], w: r[2] || 16, h: r[3] || 16,
     normalIndex: index, normalCount: normal.length
   })).concat(custom.map((r) => ({
-    x: r.x, y: r.y, w: r.w || 16, h: r.h || 16, type: r.type, count: r.count || 1
+    x: r.x, y: r.y, w: r.w || 16, h: r.h || 16, type: r.type,
+    count: r.count || 1, waveBaseCount: r.waveBaseCount, waveIncrement: r.waveIncrement || 0
   })));
   if (!spawnPoints.length) {
     console.warn("Este nivel no tiene áreas de spawn definidas en su archivo Logic.");
@@ -82,6 +83,7 @@ function initSpawnPoints() {
 }
 
 function spawnPointCount(point) {
+  if (point.waveBaseCount !== undefined) return point.waveBaseCount + (point.wave - 1) * point.waveIncrement;
   if (point.count !== undefined) return point.count;
   const cycle = Math.floor((level - 1) / 9);
   const total = Math.min(CFG.waveBase + cycle * 20 + (point.wave - 1) * CFG.wavePerWave, CFG.waveMax + cycle * 20);

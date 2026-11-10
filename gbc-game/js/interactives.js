@@ -76,7 +76,9 @@ function cullItems() {
   const groups = findMapRewards(itemsLayer, MAP_W, MAP_H);
   const keep = {
     crystal: isCrystalLevel(level) ? CFG.crystalCount : 0,
-    chest: 1 + rnd(2) + (isCrystalLevel(level) ? 1 : 0),
+    chest: groups.chest.length > 2
+      ? Math.min(groups.chest.length, 1 + rnd(2) + (isCrystalLevel(level) ? 1 : 0))
+      : groups.chest.length,
     lucky: groups.lucky.length
   };
   for (const kind of Object.keys(groups)) {

@@ -67,13 +67,14 @@ gbc.js, input.js
 Hardware simulado: mini-PPU de Game Boy Color e Input (teclado y gamepad -> máscara de botones BTN por jugador). No se tocan al añadir contenido.
 
 loader_dmg.js
-Carga imágenes, splash y todos los niveles maps/Level1-N_{Fondo,Items}.csv (+ _Logic.json opcional) hasta que falta uno. Devuelve `assets`.
+Carga imágenes, splash y todos los niveles maps/Level0-N y Level1-N_{Fondo,Items}.csv (+ _Logic.json opcional) hasta que falta uno en cada familia. Devuelve `assets`.
 
 ------------------------------------------------------------
 CÓMO AÑADIR CONTENIDO
 
 Nivel nuevo
-  Crea maps/Level1-N_Fondo.csv y _Items.csv (mismo tamaño) y, opcionalmente, _Logic.json con start, end, spawners y customSpawners.
+  Crea maps/Level0-N o Level1-N_Fondo.csv y _Items.csv (mismo tamaño) y, opcionalmente, _Logic.json con start, end, spawners y customSpawners. Los spawners Bee/Slug exportados generan 5 enemigos en la primera oleada y uno más en cada nueva oleada.
+  Para crear el _Logic.json desde Tiled sin volver a exportar CSV: python tools/export_all_maps.py --no-csv --only Level0-1 Level0-2.
   Sin tocar código: el loader los detecta si N es correlativo.
 
 Enemigo nuevo

@@ -1,6 +1,6 @@
 """Exporta TODOS los .tmx de Tiled de una vez:
   1) capas de tiles  -> maps/<mapa>_<capa>.csv   (con Tiled en linea de comandos)
-  2) capa de objetos -> maps/<mapa>_Logic.json    (Start, End, EnemiSpawner; rectangulos [x, y, w, h])
+  2) capa de objetos -> maps/<mapa>_Logic.json    (Start, End, EnemiSpawner[_Slug|_SlugBig|_Bee])
 
 Uso (desde la carpeta del proyecto):
     python tools/export_all_maps.py
@@ -20,6 +20,12 @@ from pathlib import Path
 
 DEFAULT_SRC = "../ART/Tilesmaps"
 DEFAULT_DST = "maps"
+
+SPAWNER_TYPES = {
+    "Slug": "slime",
+    "SlugBig": "bigSlime",
+    "Bee": "bee",
+}
 
 CANDIDATES = [
     r"C:\Program Files\Tiled\tiled.exe",
@@ -54,7 +60,7 @@ def export_csv(tiled, tmx, dst):
 def export_logic(tmx, dst):
     """Misma logica que convert_logic.py."""
     root = ET.parse(tmx).getroot()
-    logic = {"start": None, "end": None, "spawners": []}
+    logic = {"start": None, "end": None, "spawners": [], "customSpawners": []}
     for group in root.iter("objectgroup"):
         for obj in group.iter("object"):
             rect = [round(float(obj.get(k, 0))) for k in ("x", "y", "width", "height")]
@@ -65,6 +71,18 @@ def export_logic(tmx, dst):
                 logic["end"] = rect
             elif name == "EnemiSpawner":
                 logic["spawners"].append(rect)
+            elif name.startswith("EnemiSpawner_"):
+                enemy = name[len("EnemiSpawner_"):]
+                if enemy not in SPAWNER_TYPES:
+                    raise ValueError(f"Tipo de spawner desconocido en {tmx.name}: {name}")
+                spawner = {
+                    "x": rect[0], "y": rect[1], "w": rect[2], "h": rect[3],
+                    "type": SPAWNER_TYPES[enemy],
+                }
+                if enemy in ("Slug", "Bee"):
+                    spawner["waveBaseCount"] = 5
+                    spawner["waveIncrement"] = 1
+                logic["customSpawners"].append(spawner)
     out = dst / f"{tmx.stem}_Logic.json"
     with open(out, "w") as f:
         json.dump(logic, f)
@@ -99,7 +117,8 @@ def main():
                 status.append("CSV")
             if not args.no_logic:
                 lg = export_logic(m, dst)
-                status.append(f"Logic(start={'si' if lg['start'] else 'NO'}, end={'si' if lg['end'] else 'NO'}, spawners={len(lg['spawners'])})")
+                spawners = len(lg["spawners"]) + len(lg["customSpawners"])
+                status.append(f"Logic(start={'si' if lg['start'] else 'NO'}, end={'si' if lg['end'] else 'NO'}, spawners={spawners})")
             print(f"OK    {m.stem}: " + ", ".join(status))
         except Exception as e:
             fails += 1

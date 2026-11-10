@@ -81,6 +81,8 @@ test("elige mapas aptos y no cuenta cofres solapados dos veces", () => {
   assert.equal(run("findMapRewards(overlap.items, overlap.w, overlap.h).chest.length"), 1);
   assert.equal(run("level = 1; pickLevel(); initialItemsLayer[2]"), 29);
   assert.equal(run("level = 3; pickLevel(); initialItemsLayer[60]"), 94);
+  run("layouts = [layout(2, false)]; level = 1");
+  assert.equal(run("pickLevel(); initialItemsLayer[0]"), 29);
   run("layouts = [ordinary]; level = 3");
   assert.throws(() => run("pickLevel()"), /No hay mapas compatibles/);
 });
@@ -184,6 +186,24 @@ test("los spawns personalizados respetan su tipo y cantidad de forma independien
   assert.equal(run("enemies.filter(e => e.spawnPoint === spawnPoints[1] && e.type === 'slime').length"), 3);
 });
 
+test("los spawns personalizados pueden aumentar su cantidad en cada oleada", () => {
+  const run = setup();
+  run(`
+    levelLogic = { customSpawners: [
+      {x:0,y:0,w:8,h:8,type:"bee",waveBaseCount:5,waveIncrement:1},
+      {x:64,y:64,w:8,h:8,type:"slime",count:3},
+      {x:128,y:128,w:8,h:8,type:"bigSlime"}
+    ] };
+    initSpawnPoints();
+  `);
+  run("spawnPoints[0].wave = 1; spawnPoints[1].wave = 1");
+  assert.equal(run("spawnPointCount(spawnPoints[0])"), 5);
+  assert.equal(run("spawnPointCount(spawnPoints[1])"), 3);
+  assert.equal(run("spawnPointCount(spawnPoints[2])"), 1);
+  run("spawnPoints[0].wave = 2");
+  assert.equal(run("spawnPointCount(spawnPoints[0])"), 6);
+});
+
 test("si no puede generar una oleada la reintenta sin descontarla ni depender de otros puntos", () => {
   const run = setup();
   run("level = 2; initSpawnPoints(); blocked = true; for(let i=0;i<60;i++) updateSpawnPoints()");
@@ -254,6 +274,24 @@ test("elige uno o dos cofres, con uno extra en niveles de cristal y sin reducir 
   assert.equal(run("[4,6].includes(itemsLayer.filter(i => i === 29).length)"), true);
   run("itemsLayer.fill(-1); cullItems()");
   assert.equal(run("itemsLayer.filter(i => i >= 0).length"), 0);
+});
+
+test("conserva todos los cofres del mapa si hay dos o menos", () => {
+  const run = setup();
+  run(`
+    function buildChestCount(count) {
+      itemsLayer.fill(-1);
+      for (let n=0; n<count; n++) {
+        const x=n*3;
+        itemsLayer[x]=29; itemsLayer[x+1]=29;
+        itemsLayer[MAP_W+x]=61; itemsLayer[MAP_W+x+1]=61;
+      }
+    }
+  `);
+  for (const count of [0,1,2]) {
+    run(`level = 1; buildChestCount(${count}); cullItems()`);
+    assert.equal(run("findMapRewards(itemsLayer, MAP_W, MAP_H).chest.length"), count);
+  }
 });
 
 test("los cristales grandes aparecen solo cada tres niveles y respetan el limite configurado", () => {

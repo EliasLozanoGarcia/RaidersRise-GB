@@ -110,50 +110,55 @@ window.DMGLoader = (function () {
         loadImage("assets/Kurt-Dash_Sprite.png").catch((err) => { console.warn(err.message); return null; })
       ]);
 
-      // Carga correlativa de todos los niveles Level1-1, Level1-2, Level1-3... que haya en maps/
+      // Carga correlativa de todos los niveles Level0-N y Level1-N que haya en maps/
       const levels = [];
-      for (let i = 1; i <= 999; i++) {
-        try {
+      for (const prefix of ["Level0", "Level1"]) {
+        let familyLevels = 0;
+        for (let i = 1; i <= 999; i++) {
+          const mapName = `${prefix}-${i}`;
           let fondo;
           try {
-            fondo = await loadMapCSV(`maps/Level1-${i}_Fondo.csv`);
+            fondo = await loadMapCSV(`maps/${mapName}_Fondo.csv`);
           } catch (e) {
-            // Sin mas niveles: 404, o (segun el servidor) un fallo de red al pedir un archivo inexistente
-            // ("Failed to fetch"). Solo si ya hay algun nivel cargado; si es el primero, es un error real.
-            if (e.notFound || (e instanceof TypeError && levels.length > 0)) break;
+            // Un 404 termina esta familia; los fallos de red solo se tratan como fin si ya cargamos mapas de ella.
+            if (e.notFound || (e instanceof TypeError && (familyLevels > 0 || prefix === "Level0"))) break;
             throw e;
           }
-          const items = await loadMapCSV(`maps/Level1-${i}_Items.csv`);
-          if (fondo.w !== items.w || fondo.h !== items.h) {
-            throw new Error(`Dimensiones distintas en Level1-${i}: Fondo ${fondo.w}x${fondo.h}, Items ${items.w}x${items.h}`);
-          }
 
-          // Intenta cargar su archivo _Logic.json (si algún nivel no tiene, pone null y no falla)
-          let logic = null;
           try {
-            const logicRes = await fetch(`maps/Level1-${i}_Logic.json`);
-            if (logicRes.ok) logic = await logicRes.json();
-          } catch (err) {
-            logic = null;
-          }
+            const items = await loadMapCSV(`maps/${mapName}_Items.csv`);
+            if (fondo.w !== items.w || fondo.h !== items.h) {
+              throw new Error(`Dimensiones distintas: Fondo ${fondo.w}x${fondo.h}, Items ${items.w}x${items.h}`);
+            }
 
-          levels.push({
-            w: fondo.w,
-            h: fondo.h,
-            fondo: fondo.data,
-            fondoAttrs: fondo.attrs,
-            items: items.data,
-            itemsAttrs: items.attrs,
-            logic: logic
-          });
-        } catch (e) {
-          // Un nivel que existe pero esta mal formado ya no se ignora en silencio: se informa del motivo.
-          throw new Error(`Level1-${i}: ${e.message}`);
+            // Intenta cargar su archivo _Logic.json (si algún nivel no tiene, pone null y no falla)
+            let logic = null;
+            try {
+              const logicRes = await fetch(`maps/${mapName}_Logic.json`);
+              if (logicRes.ok) logic = await logicRes.json();
+            } catch (err) {
+              logic = null;
+            }
+
+            levels.push({
+              w: fondo.w,
+              h: fondo.h,
+              fondo: fondo.data,
+              fondoAttrs: fondo.attrs,
+              items: items.data,
+              itemsAttrs: items.attrs,
+              logic: logic
+            });
+            familyLevels++;
+          } catch (e) {
+            // Un nivel que existe pero está mal formado ya no se ignora en silencio: se informa del motivo.
+            throw new Error(`${mapName}: ${e.message}`);
+          }
         }
       }
 
       if (levels.length === 0) {
-        throw new Error("No se encontró ningún nivel (ej: maps/Level1-1_Fondo.csv)");
+        throw new Error("No se encontró ningún nivel (ej: maps/Level0-1_Fondo.csv o maps/Level1-1_Fondo.csv)");
       }
 
       return {

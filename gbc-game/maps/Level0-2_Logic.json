@@ -1,0 +1,1 @@
+{"start": [64, 120, 32, 8], "end": [153, 16, 7, 25], "spawners": [], "customSpawners": [{"x": 9, "y": 65, "w": 13, "h": 14, "type": "slime", "waveBaseCount": 5, "waveIncrement": 1}, {"x": 10, "y": 100, "w": 18, "h": 18, "type": "slime", "waveBaseCount": 5, "waveIncrement": 1}, {"x": 27, "y": 19, "w": 19, "h": 30, "type": "bee", "waveBaseCount": 5, "waveIncrement": 1}]}

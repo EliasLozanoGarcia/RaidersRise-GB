@@ -31,8 +31,7 @@ function startPos(i) {
 function pickLevel() {
   const candidates = layouts.filter((l) => {
     const rewards = findMapRewards(l.items, l.w, l.h);
-    return rewards.chest.length >= (isCrystalLevel(level) ? 3 : 2) &&
-      (!isCrystalLevel(level) || rewards.crystal.length > 0);
+    return !isCrystalLevel(level) || rewards.crystal.length > 0;
   });
   if (!candidates.length) throw new Error(`No hay mapas compatibles con el botín del nivel ${level}.`);
   const preferred = layouts[(level - 1) % layouts.length];
