@@ -382,7 +382,7 @@ function updateInteractives() {
     if (pusher) {
       if (!c.saved) {
         c.saved = topCells.map((i) => [itemsLayer[i], itemsAttrs[i]]);
-        topCells.forEach((i, k) => setItemTile(i, ALERT_CHEST, c.saved[k][1]));
+        topCells.forEach((i, k) => setItemTile(i, ALERT_CHEST, k === 0 ? 0x20 : 0));
       }
       c.pushTime++;
       if (c.pushTime >= 90) openCoinChest(c, pusher);

@@ -16,7 +16,7 @@ function setup() {
     const DIR_INDEX = [0, 1, 2, 3, 4, 5, 6, 7, 8];
     const itemsLayer = Array(MAP_W * MAP_H).fill(-1);
     const itemsAttrs = Array(MAP_W * MAP_H).fill(0);
-    const ALERT_CHEST = 93;
+    const ALERT_CHEST = 93, ALERT_CRYSTAL = [126, 127];
     let level = 1;
     const players = [
       { id: 0, x: 34 << 8, y: 39 << 8, active: true, hp: 4, coins: 0 },
@@ -61,6 +61,8 @@ test("cambiar de cofre reinicia el progreso y restaura la alerta", () => {
   run("for (let i = 0; i < 30; i++) updateInteractives()");
   assert.equal(run("coinChests[0].pushTime"), 30);
   assert.equal(run("itemsLayer[4 * MAP_W + 4]"), 93);
+  assert.equal(run("itemsAttrs[4 * MAP_W + 4]"), 32);
+  assert.equal(run("itemsAttrs[4 * MAP_W + 5]"), 0);
   run("players[0].x = 42 << 8; updateInteractives()");
   assert.equal(run("coinChests[0].pushTime"), 0);
   assert.equal(run("itemsLayer[4 * MAP_W + 4]"), 29);
@@ -68,6 +70,24 @@ test("cambiar de cofre reinicia el progreso y restaura la alerta", () => {
   run("input.held[0] = 0; updateInteractives()");
   assert.equal(run("coinChests[1].pushTime"), 0);
   assert.equal(run("itemsLayer[4 * MAP_W + 6]"), 29);
+});
+
+test("el cristal conserva sus tiles y atributos al dejar de empujar", () => {
+  const run = setup();
+  run(`
+    coinChests = [];
+    crystals = [{ tx: 4, ty: 4, pushTime: 0, mined: false }];
+    setItemTile(4 * MAP_W + 4, 30, 64);
+    setItemTile(4 * MAP_W + 5, 31, 32);
+    updateInteractives();
+  `);
+  assert.equal(run("itemsLayer[4 * MAP_W + 4]"), 126);
+  assert.equal(run("itemsLayer[4 * MAP_W + 5]"), 127);
+  run("input.held[0] = 0; updateInteractives()");
+  assert.equal(run("itemsLayer[4 * MAP_W + 4]"), 30);
+  assert.equal(run("itemsAttrs[4 * MAP_W + 4]"), 64);
+  assert.equal(run("itemsLayer[4 * MAP_W + 5]"), 31);
+  assert.equal(run("itemsAttrs[4 * MAP_W + 5]"), 32);
 });
 
 test("dos jugadores pueden abrir cofres distintos independientemente", () => {

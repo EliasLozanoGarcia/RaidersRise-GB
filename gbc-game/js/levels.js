@@ -44,6 +44,7 @@ function resetGame(keepUpgrades) {
   assets.tilesetImage = assets.biomeTilesets[biomeIndex(level)];
   scanTilesetTransparency();
   hitImages.tileset = makeHitImage(assets.tilesetImage);
+  hitImages.transparentTileset = makeHitImage(transparentTilesetImage);
   pickLevel();
   shop = null;
   itemsLayer = initialItemsLayer.slice();

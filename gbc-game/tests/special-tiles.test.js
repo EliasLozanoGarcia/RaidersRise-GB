@@ -339,6 +339,77 @@ test("recorta la mitad bloqueada y recompone el diamante y la moneda sobre el es
   assert.equal(run("calls.join(',')"), "154:0:0,composite");
 });
 
+test("compone los tiles solicitados sobre el suelo 49 y sobre los especiales", () => {
+  const run = setup();
+  run(`
+    const calls = [];
+    compCtx = { clearRect() {}, save() {}, restore() {}, beginPath() {}, rect() {}, clip() {} };
+    specialCompCv = {};
+    specialCompCtx = compCtx;
+    ctx.drawImage = () => {};
+    drawTileInto = (c, id, attr) => calls.push([id, attr].join(":"));
+    compFree.push(0);
+    for (const id of FLOOR_COMPOSITE_TILES) transparentTiles.add(id);
+    fondoLayer[42] = 8; itemsLayer[42] = 64; itemsAttrs[42] = 32;
+    setComposite(42, 0);
+  `);
+  assert.equal(run("calls.join(',')"), "49:0,64:32");
+  run("calls.length = 0; drawSpecialComposite(ctx, 42, 153, 64, 0, 0)");
+  assert.equal(run("calls.join(',')"), "153:64,64:32");
+  run("calls.length = 0; fondoLayer[42] = 69; drawSpecialComposite(ctx, 42, 153, 0, 0, 0)");
+  assert.equal(run("calls.join(',')"), "153:0,64:32");
+  run("calls.length = 0; fondoLayer[42] = 69; fondoAttrs[42] = 64; itemsLayer[42] = -1; setComposite(42, 0)");
+  assert.equal(run("calls.join(',')"), "49:0,69:64");
+  run("calls.length = 0; drawSpecialComposite(ctx, 42, 90, 32, 0, 0)");
+  assert.equal(run("calls.join(',')"), "90:32,69:64");
+  assert.equal(run("[64,65,66,67,69,70,71,72].every(id => needsComposite(id))"), true);
+});
+
+test("elimina solo el color de suelo de los tiles indicados al analizar el tileset", () => {
+  const run = setup();
+  run(`
+    const pixels = new Uint8ClampedArray(256 * 64 * 4);
+    for (let i = 0; i < pixels.length; i += 4) {
+      pixels[i] = 75; pixels[i + 1] = 110; pixels[i + 2] = 26; pixels[i + 3] = 255;
+    }
+    const pixelAt = (id, x = 0, y = 0) => (((id >> 5) * 8 + y) * 256 + (id % 32) * 8 + x) * 4;
+    pixels[pixelAt(64, 1)] = 9;
+    let written;
+    document.createElement = () => ({
+      getContext: () => ({ drawImage() {}, getImageData: () => ({ data: pixels }),
+        putImageData: (data) => { written = data.data; } })
+    });
+    assets.tilesetImage = { width: 256, height: 64 };
+    scanTilesetTransparency();
+  `);
+  assert.equal(run("[64,65,66,67,69,70,71,72].every(id => written[pixelAt(id) + 3] === 0 && transparentTiles.has(id))"), true);
+  assert.equal(run("written[pixelAt(64, 1) + 3]"), 255);
+  assert.equal(run("written[pixelAt(49) + 3]"), 255);
+  assert.equal(run("written[pixelAt(68) + 3]"), 255);
+});
+
+test("las alertas componen cofre o cristal y el 93 volteado sobre el fondo", () => {
+  const run = setup();
+  run(`
+    const calls = [];
+    compCtx = { clearRect() {}, save() {}, restore() {}, beginPath() {}, rect() {}, clip() {} };
+    specialCompCv = {};
+    specialCompCtx = compCtx;
+    ctx.drawImage = () => {};
+    drawTileInto = (c, id, attr) => calls.push([id, attr].join(":"));
+    compFree.push(0);
+    itemsLayer[42] = 93; itemsAttrs[42] = 32;
+    setComposite(42, 0);
+  `);
+  assert.equal(run("calls.join(',')"), "49:0,29:32,93:32");
+  run("calls.length = 0; itemsAttrs[42] = 0; setComposite(42, 0)");
+  assert.equal(run("calls.join(',')"), "49:0,29:0,93:0");
+  run("calls.length = 0; itemsLayer[42] = 126; itemsAttrs[42] = 64; setComposite(42, 0)");
+  assert.equal(run("calls.join(',')"), "49:0,30:64,93:32");
+  run("calls.length = 0; itemsLayer[42] = 127; itemsAttrs[42] = 0; drawSpecialComposite(ctx, 42, 154, 0, 0, 0)");
+  assert.equal(run("calls.join(',')"), "154:0,31:0,93:0");
+});
+
 test("dibuja el marcador sobre items sin modificar las capas y lo sustituye por la explosion", () => {
   const run = setup();
   run(`

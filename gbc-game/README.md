@@ -148,8 +148,10 @@ Los numeros de Tiled 147-153 corresponden a los IDs internos 146-152.
 - Tiles compuestos: los items con transparencia (detectados por alfa en el tileset),
   las monedas (147, ID interno) y las alertas (93 cofre, 126/127 cristal) se dibujan como un tile
   buffer (suelo + item) de un pool de 96 huecos (ids 160-255, filas 6-8), que se libera al desaparecer el item.
+  Los tiles 64-67 y 69-72 usan el color del suelo 49 como transparencia; si estan en la capa de fondo,
+  o de items, se componen sobre el suelo 49. Los especiales sustituyen el suelo y conservan el objeto encima.
   Las monedas caen (1 px mas arriba durante 0,1 s) y salen escalonadas en grupos de 1-3.
-  Al empujar un cofre o cristal, sus tiles superiores se cambian por la alerta.
+  Al empujar un cofre o cristal, la alerta 93 se compone sobre sus tiles superiores originales.
 - Logica en enteros (pensada para portarla a Game Boy): posiciones y velocidades en 8.8
   (256 = 1 px), angulos de 0-255 con tabla de seno y `atan2b`, RNG xorshift de 16 bits
   (`rnd`, `shuffle`), sin `Math.random/hypot/atan2/sin/cos` en el juego. Los

@@ -41,7 +41,10 @@ function drawMapTile(ctx, tx, ty, tileId, attr, hit = false, dy = 0, dx = 0) {
   ctx.translate(screenX + 4, screenY + 4);
   if (flags & 0x20) ctx.scale(-1, 1);
   if (flags & 0x40) ctx.scale(1, -1);
-  ctx.drawImage(hit && hitImages.tileset ? hitImages.tileset : assets.tilesetImage, sourceX, sourceY, 8, 8, -4, -4, 8, 8);
+  const image = FLOOR_COMPOSITE_TILES.has(tileId) && transparentTilesetImage
+    ? (hit && hitImages.transparentTileset ? hitImages.transparentTileset : transparentTilesetImage)
+    : (hit && hitImages.tileset ? hitImages.tileset : assets.tilesetImage);
+  ctx.drawImage(image, sourceX, sourceY, 8, 8, -4, -4, 8, 8);
   ctx.restore();
 }
 
@@ -71,8 +74,9 @@ function drawSpecialTile(ctx, cell, id, attr, hit = false) {
   if (!drawSpecialComposite(ctx, idx, id, attr, x, y, itemImage)) {
     drawMapTile(ctx, cell.tx, cell.ty, id, attr);
     if (itemsLayer[idx] >= 0 && !coinWaiting(idx)) {
-      drawMapTile(ctx, cell.tx, cell.ty, itemsLayer[idx], itemsAttrs[idx], hit,
-        tileOffY.get(idx) || 0, tileOffX.get(idx) || 0);
+      for (const [part, flags] of itemTileParts(itemsLayer[idx], itemsAttrs[idx]))
+        drawMapTile(ctx, cell.tx, cell.ty, part, flags, hit,
+          tileOffY.get(idx) || 0, tileOffX.get(idx) || 0);
     }
   }
   ctx.restore();
@@ -370,7 +374,12 @@ function render() {
         if (!coinWaiting(idx) || fondoClear(idx)) ctx.drawImage(compCv, fs * 8, 0, 8, 8, tx * 8 - cam.x, ty * 8 - cam.y, 8, 8);
         continue;
       }
-      drawMapTile(ctx, tx, ty, fondoLayer[idx], fondoAttrs[idx], blasts.has(idx));
+      if (FLOOR_COMPOSITE_TILES.has(itemsLayer[idx]) && !coinWaiting(idx)) {
+        drawMapTile(ctx, tx, ty, 49, 0);
+      } else {
+        if (fondoClear(idx)) drawMapTile(ctx, tx, ty, baseFloor(idx), 0);
+        drawMapTile(ctx, tx, ty, fondoLayer[idx], fondoAttrs[idx], blasts.has(idx));
+      }
     }
   }
 
@@ -382,7 +391,8 @@ function render() {
       const hasOffX = tileOffX.has(idx);
       const slot = compSlot.get(idx);
       if (slot !== undefined && !flashed(idx) && !tileOffY.has(idx) && !hasOffX) continue;
-      drawMapTile(ctx, tx, ty, itemsLayer[idx], itemsAttrs[idx], flashed(idx), tileOffY.get(idx) || 0, hasOffX ? tileOffX.get(idx) : 0);
+      for (const [part, flags] of itemTileParts(itemsLayer[idx], itemsAttrs[idx]))
+        drawMapTile(ctx, tx, ty, part, flags, flashed(idx), tileOffY.get(idx) || 0, hasOffX ? tileOffX.get(idx) : 0);
     }
   }
 

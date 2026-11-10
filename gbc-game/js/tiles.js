@@ -70,9 +70,11 @@ const LUCKY_DROPS = Object.values(PICKUP);
 const coinChanceTenths = () => Math.max(1, 11 - level);
 const COIN_TILE = PICKUP.coin, FALL_FRAMES = 6;
 const ALERT_CHEST = 93, ALERT_CRYSTAL = [126, 127];
+const FLOOR_COMPOSITE_TILES = new Set([64, 65, 66, 67, 69, 70, 71, 72]);
 const compSlot = new Map(), compFree = [], coinAnim = new Map(), transparentTiles = new Set();
 let compCv = null, compCtx = null;
 let specialCompCv = null, specialCompCtx = null;
+let transparentTilesetImage = null;
 
 function initComposites() {
   compCv = document.createElement("canvas");
@@ -91,7 +93,8 @@ function scanTilesetTransparency() {
   cv.height = ts.height;
   const c = cv.getContext("2d");
   c.drawImage(ts, 0, 0);
-  const px = c.getImageData(0, 0, cv.width, cv.height).data;
+  const imageData = c.getImageData(0, 0, cv.width, cv.height);
+  const px = imageData.data;
   const cols = cv.width >> 3;
   for (let id = 0; id < cols * (cv.height >> 3); id++) {
     const x0 = (id % cols) * 8, y0 = ((id / cols) | 0) * 8;
@@ -99,6 +102,18 @@ function scanTilesetTransparency() {
     for (let y = 0; y < 8 && !clear; y++) for (let x = 0; x < 8; x++) if (px[((y0 + y) * cv.width + x0 + x) * 4 + 3] < 255) { clear = true; break; }
     if (clear) transparentTiles.add(id);
   }
+  const floorOffset = (((49 / cols) | 0) * 8 * cv.width + (49 % cols) * 8) * 4;
+  for (const id of FLOOR_COMPOSITE_TILES) {
+    const x0 = (id % cols) * 8, y0 = ((id / cols) | 0) * 8;
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+      const p = ((y0 + y) * cv.width + x0 + x) * 4;
+      if (px[p] === px[floorOffset] && px[p + 1] === px[floorOffset + 1] &&
+          px[p + 2] === px[floorOffset + 2] && px[p + 3] === px[floorOffset + 3]) px[p + 3] = 0;
+    }
+    transparentTiles.add(id);
+  }
+  c.putImageData(imageData, 0, 0);
+  transparentTilesetImage = cv;
 }
 
 const needsComposite = (id) => id >= 0 && compCtx !== null &&
@@ -108,6 +123,7 @@ const fondoClear = (idx) => compCtx !== null && fondoLayer[idx] >= 0 && transpar
 
 // Suelo opaco que hay detras de un tile de fondo transparente: el mas frecuente entre sus vecinos.
 function baseFloor(idx) {
+  if (FLOOR_COMPOSITE_TILES.has(fondoLayer[idx])) return 49;
   const tx = idx % MAP_W, ty = (idx / MAP_W) | 0, cnt = new Map();
   for (const [ox, oy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
     const x = tx + ox, y = ty + oy;
@@ -133,8 +149,24 @@ function drawTileInto(c, id, attr, ox, oy, image = assets.tilesetImage) {
   c.translate(ox + 4, oy + 4);
   if (attr & 0x20) c.scale(-1, 1);
   if (attr & 0x40) c.scale(1, -1);
-  c.drawImage(image, (id % 32) * 8, ((id / 32) | 0) * 8, 8, 8, -4, -4, 8, 8);
+  let source = image;
+  if (FLOOR_COMPOSITE_TILES.has(id) && transparentTilesetImage) {
+    if (image === assets.tilesetImage) source = transparentTilesetImage;
+    else if (image === hitImages.tileset && hitImages.transparentTileset) source = hitImages.transparentTileset;
+  }
+  c.drawImage(source, (id % 32) * 8, ((id / 32) | 0) * 8, 8, 8, -4, -4, 8, 8);
   c.restore();
+}
+
+function itemTileParts(id, attr) {
+  if (id === ALERT_CHEST) return [[29, attr], [93, attr]];
+  if (id === ALERT_CRYSTAL[0]) return [[30, attr], [93, 0x20]];
+  if (id === ALERT_CRYSTAL[1]) return [[31, attr], [93, 0]];
+  return [[id, attr]];
+}
+
+function drawItemInto(c, id, attr, x, y, image = assets.tilesetImage) {
+  for (const [part, flags] of itemTileParts(id, attr)) drawTileInto(c, part, flags, x, y, image);
 }
 
 // Compone suelo + item en el hueco de la celda; dy desplaza el item (1 pixel arriba = -1).
@@ -151,9 +183,13 @@ function setComposite(idx, dy, noItem = false) {
   compCtx.beginPath();
   compCtx.rect(x, 0, 8, 8);
   compCtx.clip();
-  if (fondoClear(idx)) drawTileInto(compCtx, baseFloor(idx), 0, x, 0);
-  if (fondoLayer[idx] >= 0) drawTileInto(compCtx, fondoLayer[idx], fondoAttrs[idx], x, 0);
-  if (!noItem && itemsLayer[idx] >= 0) drawTileInto(compCtx, itemsLayer[idx], itemsAttrs[idx], x, dy);
+  if (FLOOR_COMPOSITE_TILES.has(itemsLayer[idx]) && !noItem) {
+    drawTileInto(compCtx, 49, 0, x, 0);
+  } else {
+    if (fondoClear(idx)) drawTileInto(compCtx, baseFloor(idx), 0, x, 0);
+    if (fondoLayer[idx] >= 0) drawTileInto(compCtx, fondoLayer[idx], fondoAttrs[idx], x, 0);
+  }
+  if (!noItem && itemsLayer[idx] >= 0) drawItemInto(compCtx, itemsLayer[idx], itemsAttrs[idx], x, dy);
   compCtx.restore();
   return true;
 }
@@ -173,11 +209,12 @@ function drawSpecialComposite(ctx, idx, id, attr, x, y, itemImage = assets.tiles
   c.rect(0, 0, 8, 8);
   c.clip();
   drawTileInto(c, id, attr, 0, 0);
-  if (fondoClear(idx)) drawTileInto(c, fondoLayer[idx], fondoAttrs[idx], 0, 0);
+  if (fondoClear(idx) && !FLOOR_COMPOSITE_TILES.has(itemsLayer[idx]))
+    drawTileInto(c, fondoLayer[idx], fondoAttrs[idx], 0, 0);
   if (itemsLayer[idx] >= 0 && !coinWaiting(idx)) {
     const coin = coinAnim.get(idx);
     const dy = coin && coin.fall ? -1 : 0;
-    drawTileInto(c, itemsLayer[idx], itemsAttrs[idx], 0, dy, itemImage);
+    drawItemInto(c, itemsLayer[idx], itemsAttrs[idx], 0, dy, itemImage);
   }
   c.restore();
   ctx.drawImage(specialCompCv, x, y);
