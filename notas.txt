@@ -1,15 +1,18 @@
 Crear Spawn Areas custom para Slugs, Big Slugs, Bees, Big Bees, etc... con algun parametro de cantidad, 
 Manten el Spawn tal coimo esta ahora para spam totalmente aleatorio de todo.
 
-Hacer tiles para las abilidades
--Area seleccionada
--Explosion
 
 Mejorar dash de Kurt, los sprites.
 
 Hacer sprites de Atabusk
 
+Kathy al disparar ha de ir mas lenta, por el retroceso de 1 pixel.
+
+Hacer mas nivels, almenos 99.
+
+
 Mejorar menus:
+-Cinematica intro.
 -Iconos de las abilidades, tipo cartas
 -Diseño del profile de cada raider.
 -Mejorar avatares.
@@ -21,6 +24,7 @@ Diseño:
 -Resolver las abilidades, lo del select no funciona bien, probar: 
  1.usar el select para cambiar entre dash y ultimate.
  2.doble tap en la direccion para hacer el dash (las diagoneles son complicadas) y la B para la Ultimate.
+
 -Pasivas
  1.Granada se lanza cada X tiempo.
  2.Invulneravilidad al quedarte con 1 corazon.
