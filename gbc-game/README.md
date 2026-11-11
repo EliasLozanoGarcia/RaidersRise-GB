@@ -48,12 +48,15 @@ mandos; el primero controla J1 y el segundo J2.
 El juego arranca con una splash screen con cuatro opciones (Arriba/Abajo y A):
 **Single Player**, **Multiplayer**, **Raiders** (galería de personajes con ficha
 detallada) y **About** (información legal y QR provisional de la versión móvil).
-En About, Izq/Der cambia de página y B vuelve al menú.
+En About, mantén Arriba/Abajo para desplazar el contenido un píxel por frame;
+B vuelve al menú. El QR utiliza los verdes de la paleta de Game Boy.
 Single Player permite un jugador; Multiplayer requiere que ambos jugadores
 confirmen sus personajes antes de comenzar. La pantalla de selección de
 personaje usa Izq/Der para elegir, A para confirmar y B para cancelar. La
 galería y la selección muestran los seis retratos del diseño; Baba, Maya y
-Korin aparecen bloqueados porque todavía no están disponibles para jugar:
+Korin aparecen bloqueados porque todavía no están disponibles para jugar.
+Las tarjetas tienen laterales diagonales y ocupan 5 × 5 tiles de 8 × 8 píxeles.
+El fondo repite horizontalmente la primera columna de tiles del mockup.
 
 - **Kathy**: bazuca con explosión; especial en área 3x3 con daño continuo.
 - **Kurt**: +50 % vida, más lento; ametralladora (15 balas/s con dispersión);
@@ -79,7 +82,10 @@ ninguno de los dos. Empujar un cofre durante 1,5 segundos suma monedas al
 inventario y deja monedas recogibles sobre el cofre y en celdas transitables
 cercanas. Los enemigos derrotados también pueden soltar monedas: camina sobre
 ellas para recogerlas; el total aparece en el HUD. Los enemigos varían
-ligeramente su velocidad, vagan cuando están lejos y evitan amontonarse.
+ligeramente su velocidad, vagan cuando están lejos y evitan amontonarse. Al
+recibir daño y sobrevivir, su sprite se aclara brevemente usando los mismos
+cuatro colores de la paleta de los enemigos. Al morir aparece durante 0,2 s
+un efecto de 8 × 8 píxeles centrado sobre el enemigo.
 
 Cada punto de aparición tiene sus propias oleadas: la siguiente comienza tras
 eliminar a todos los enemigos de ese punto, sin esperar a los demás. Cada punto

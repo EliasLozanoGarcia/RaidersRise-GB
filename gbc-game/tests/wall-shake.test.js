@@ -39,8 +39,8 @@ function setupCamera() {
     const itemsLayer = Array(MAP_W * MAP_H).fill(-1), itemsAttrs = Array(MAP_W * MAP_H).fill(0);
     const BTN = { START: 64, UP: 1, DOWN: 2, A: 16 };
     let screen = "game", shop = null, gameOver = false, paused = false, multiplayer = false;
-    let levelLogic = null, stats = { time: 0 }, teleportEffects = [], waveTimer = 100;
-    const CFG = { teleportEffectFrames: 32 }, blasts = new Map();
+    let levelLogic = null, stats = { time: 0 }, teleportEffects = [], enemyDeathEffects = [], waveTimer = 100;
+    const CFG = { teleportEffectFrames: 32, enemyDeathFrames: 12 }, blasts = new Map();
     const DMGLoader = { init: () => new Promise(() => {}) };
     function overlap(ax, ay, a, bx, by, b) {
       return ax + a.x < bx + b.x + b.w && ax + a.x + a.w > bx + b.x &&
@@ -63,6 +63,16 @@ function setupCamera() {
   `, context);
   return (code) => vm.runInContext(code, context);
 }
+
+test("el efecto de muerte dura doce frames y se congela durante la pausa", () => {
+  const run = setupCamera();
+  run("enemyDeathEffects.push({age: 0}); paused = true; update()");
+  assert.equal(run("enemyDeathEffects[0].age"), 0);
+  run("paused = false; for (let i = 0; i < 11; i++) update()");
+  assert.equal(run("enemyDeathEffects[0].age"), 11);
+  run("update()");
+  assert.equal(run("enemyDeathEffects.length"), 0);
+});
 
 test("cada fase del muro inicia una vibracion breve", () => {
   const run = setup();

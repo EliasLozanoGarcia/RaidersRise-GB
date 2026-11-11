@@ -4,10 +4,11 @@
 // ------------------------------------------------------------ Pantallas: splash y seleccion de personaje
 let screen = "splash";
 let menuSel = 0, rosterSel = 0, setSel = 0;
-let multiplayer = false, aboutPage = 0;
+let multiplayer = false, aboutScroll = 0;
 const pick = { cur: [0, 1], ready: [false, false], joined: [true, false] };
 const SPLASH_OPTIONS = ["Single Player", "Multiplayer", "Raiders", "About"];
 const ABOUT_TEXT = "Raiders Rise ©2026 Penguin Armada S.L. Raiders Rise and the Raiders Rise logo are trademarks and/or registered trademarks of Penguin Armada S.L. Penguin Armada and the Penguin Armada logo are trademarks and/or registered trademarks of Penguin Armada S.L.";
+const ABOUT_QR_SIZE = 90;
 const STAT_BARS = [
   { label: "spd", key: "spd" },
   { label: "hp", key: "hp" },
@@ -18,12 +19,12 @@ const TXT = {
   es: { choose: "Elige personaje", pressA: "A elegir", ready: "Listo", spd: "Vel", hp: "Vida", dmg: "Dano", weapon: "Arma", special: "Especial",
     raiders: "Raiders", settings: "Ajustes", language: "Idioma", langName: "Espanol", sound: "Sonido", music: "Musica", sfx: "Efectos", back: "Volver",
     hintSplash: "Arriba/Abajo elegir, F aceptar", hintSelectSingle: "Izq/Der elegir, F confirmar, G cancelar", hintSelectMulti: "Izq/Der elegir, F confirmar, G cancelar; J2: flechas y ,",
-    hintAbout: "Izq/Der cambiar pagina, G volver",
+    hintAbout: "Arriba/Abajo desplazar, G volver",
     hintRaiders: "Izq/Der elegir, F ver ficha, G volver", hintSheet: "Izq/Der cambiar personaje, G volver", hintSettings: "Arriba/Abajo elegir, Izq/Der cambiar, G volver" },
   en: { choose: "Choose character", pressA: "A choose", ready: "Ready", spd: "Speed", hp: "HP", dmg: "Damage", weapon: "Weapon", special: "Special",
     raiders: "Raiders", settings: "Settings", language: "Language", langName: "English", sound: "Sound", music: "Music", sfx: "Effects", back: "Back",
     hintSplash: "Up/Down choose, F accept", hintSelectSingle: "Left/Right choose, F confirm, G cancel", hintSelectMulti: "Left/Right choose, F confirm, G cancel; P2: arrows and ,",
-    hintAbout: "Left/Right change page, G back",
+    hintAbout: "Up/Down scroll, G back",
     hintRaiders: "Left/Right choose, F details, G back", hintSheet: "Left/Right change character, G back", hintSettings: "Up/Down choose, Left/Right change, G back" },
 };
 const tr = (k) => TXT[settings.lang ? "en" : "es"][k];
@@ -41,7 +42,7 @@ function openSelect() {
 }
 function openRaiders() { screen = "raiders"; }
 function openSettings() { screen = "settings"; setSel = 0; }
-function openAbout() { screen = "about"; aboutPage = 0; }
+function openAbout() { screen = "about"; aboutScroll = 0; }
 
 function updateMenu() {
   rand16(); // la semilla depende del momento en que el jugador pulsa
@@ -61,8 +62,9 @@ function updateMenu() {
     return;
   }
   if (screen === "about") {
-    const pages = Math.ceil(wrapText(ABOUT_TEXT, 144).length / 13) + 1;
-    if (dx) { aboutPage = (aboutPage + pages + dx) % pages; sfx("hit"); }
+    const held = input.held[0] | input.held[1];
+    const scrollDir = (held & BTN.DOWN ? 1 : 0) - (held & BTN.UP ? 1 : 0);
+    aboutScroll = Math.max(0, Math.min(aboutScrollMax(), aboutScroll + scrollDir));
     if (back) screen = "splash";
     return;
   }
@@ -138,19 +140,38 @@ function drawSplash(ctx) {
   });
 }
 
+function initAboutQr() {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = ABOUT_QR_SIZE;
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(assets.qrImage, 0, 0, ABOUT_QR_SIZE, ABOUT_QR_SIZE);
+  const data = ctx.getImageData(0, 0, ABOUT_QR_SIZE, ABOUT_QR_SIZE);
+  for (let i = 0; i < data.data.length; i += 4) {
+    const dark = data.data[i] + data.data[i + 1] + data.data[i + 2] < 3 * 128;
+    const color = dark ? [15, 56, 15] : [122, 149, 58];
+    data.data[i] = color[0];
+    data.data[i + 1] = color[1];
+    data.data[i + 2] = color[2];
+  }
+  ctx.putImageData(data, 0, 0);
+  assets.aboutQrImage = canvas;
+}
+
+function aboutQrY(lines) { return 46 + lines.length * 8; }
+function aboutScrollMax() {
+  return Math.max(0, aboutQrY(wrapText(ABOUT_TEXT, 144)) + ABOUT_QR_SIZE + 8 - GBC_H);
+}
+
 function drawAbout(ctx) {
   drawBackdrop(ctx);
-  drawTextCentered(ctx, "About", 6);
   const lines = wrapText(ABOUT_TEXT, 144);
-  const textPages = Math.ceil(lines.length / 13);
-  if (aboutPage < textPages) {
-    lines.slice(aboutPage * 13, (aboutPage + 1) * 13).forEach((line, i) => drawText(ctx, line, 8, 20 + i * 8));
-  } else {
-    drawTextCentered(ctx, "A retro action game", 18);
-    drawTextCentered(ctx, "Play on mobile", 27);
-    ctx.drawImage(assets.qrImage, 35, 40, 90, 90);
-  }
-  drawTextCentered(ctx, `${aboutPage + 1}/${textPages + 1}`, 134);
+  const qrY = aboutQrY(lines);
+  drawTextCentered(ctx, "About", 6 - aboutScroll);
+  lines.forEach((line, i) => drawText(ctx, line, 8, 20 + i * 8 - aboutScroll));
+  drawTextCentered(ctx, "A retro action game", qrY - 18 - aboutScroll);
+  drawTextCentered(ctx, "Play on mobile", qrY - 9 - aboutScroll);
+  ctx.drawImage(assets.aboutQrImage, 35, qrY - aboutScroll);
 }
 
 function drawBackdrop(ctx) {
@@ -171,22 +192,33 @@ function drawRaiderPortrait(ctx, i, x, y) {
 }
 
 function drawRosterBackground(ctx) {
-  ctx.fillStyle = "#2a4e19";
-  ctx.fillRect(0, 0, GBC_W, GBC_H);
+  for (let x = 0; x < GBC_W; x += 8)
+    ctx.drawImage(assets.selectionImage, 0, 0, 8, GBC_H, x, 0, 8, GBC_H);
   ctx.drawImage(assets.selectionImage, 0, 0, 160, 20, 0, 0, 160, 20);
-  ctx.drawImage(assets.selectionImage, 0, 128, 160, 16, 0, 128, 160, 16);
 }
 
-function drawRosterCard(ctx, i, selected) {
-  const x = 25 + (i % 3) * 40, y = 24 + Math.floor(i / 3) * 48;
+function drawRosterCard(ctx, i, borderColor) {
+  const x = 24 + (i % 3) * 40, y = 24 + Math.floor(i / 3) * 48;
   const locked = i >= CHARS.length;
-  if (selected) {
-    ctx.fillStyle = "#7a953a";
-    ctx.fillRect(x - 1, y - 1, 34, 42);
+  ctx.fillStyle = "#09270f";
+  if (borderColor) {
+    ctx.fillRect(x + 7, y - 1, 34, 1);
+    for (let row = 0; row < 40; row++) {
+      const left = x + 8 - Math.floor(row / 5);
+      ctx.fillRect(left - 1, y + row, 34, 1);
+    }
+    ctx.fillRect(x, y + 40, 34, 1);
   }
-  ctx.fillStyle = "#0f380f";
-  ctx.fillRect(x, y, 32, 40);
-  drawRaiderPortrait(ctx, i, x + 1, y);
+  ctx.beginPath();
+  for (let row = 0; row < 40; row++) {
+    const left = x + 8 - Math.floor(row / 5);
+    ctx.fillRect(left, y + row, 32, 1);
+    ctx.rect(left, y + row, 32, 1);
+  }
+  ctx.save();
+  ctx.clip();
+  drawRaiderPortrait(ctx, i, x + 4, y + 1);
+  ctx.restore();
   ctx.globalAlpha = locked ? 0.6 : 1;
   drawTextCentered(ctx, locked ? ROSTER_PORTRAITS[i].name : charName(i), y + 31, x + 16);
   ctx.globalAlpha = 1;
@@ -199,11 +231,22 @@ function drawRosterCard(ctx, i, selected) {
     ctx.fillRect(x + 30, y + 25, 1, 2);
     ctx.fillRect(x + 25, y + 27, 6, 4);
   }
+  if (borderColor) {
+    ctx.fillStyle = borderColor;
+    for (let row = 0; row < 40; row++) {
+      const left = x + 8 - Math.floor(row / 5);
+      if (row === 0 || row === 39) ctx.fillRect(left, y + row, 32, 1);
+      else {
+        ctx.fillRect(left, y + row, 1, 1);
+        ctx.fillRect(left + 31, y + row, 1, 1);
+      }
+    }
+  }
 }
 
 function drawRoster(ctx) {
   drawRosterBackground(ctx);
-  ROSTER_PORTRAITS.forEach((portrait, i) => drawRosterCard(ctx, i, i === rosterSel));
+  ROSTER_PORTRAITS.forEach((portrait, i) => drawRosterCard(ctx, i, i === rosterSel ? "#7a953a" : null));
 }
 
 function drawSheet(ctx) {
@@ -258,14 +301,11 @@ function drawSelect(ctx) {
   drawRosterBackground(ctx);
   const center = (str, y) => drawTextCentered(ctx, str, y);
   ROSTER_PORTRAITS.forEach((portrait, i) => {
-    drawRosterCard(ctx, i, false);
-    const bx = 25 + (i % 3) * 40, by = 24 + Math.floor(i / 3) * 48;
+    const bx = 24 + (i % 3) * 40, by = 24 + Math.floor(i / 3) * 48;
     const selected = pick.joined.some((joined, pi) => joined && pick.cur[pi] === i);
-    if (selected) {
-      ctx.strokeStyle = pick.joined.some((joined, pi) => joined && pick.cur[pi] === i && pick.ready[pi]) ? "#7a953a" : "#55742a";
-      ctx.strokeRect(bx - 0.5, by - 0.5, 33, 41);
-    }
-    for (let pi = 0; pi < 2; pi++) {
+    const ready = pick.joined.some((joined, pi) => joined && pick.cur[pi] === i && pick.ready[pi]);
+    drawRosterCard(ctx, i, selected ? (ready ? "#7a953a" : "#55742a") : null);
+    for (let pi = 0; multiplayer && pi < 2; pi++) {
       if (!pick.joined[pi] || pick.cur[pi] !== i) continue;
       const mx = bx + (pi ? 23 : -3);
       const my = by - 3;
@@ -276,8 +316,6 @@ function drawSelect(ctx) {
       drawTextTiny(ctx, String(pi + 1), mx + 3, my + 1);
     }
   });
-  ctx.fillStyle = "#0f380f";
-  ctx.fillRect(0, 116, GBC_W, 12);
   if (multiplayer) {
     drawTextCentered(ctx, `J1 ${tr(pick.ready[0] ? "ready" : "pressA")}`, 118, 40);
     drawTextCentered(ctx, `J2 ${tr(pick.ready[1] ? "ready" : "pressA")}`, 118, 120);

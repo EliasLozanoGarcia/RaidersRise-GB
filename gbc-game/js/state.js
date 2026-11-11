@@ -10,6 +10,7 @@ let players = [], enemies = [], bullets = [];
 let spawnPoints = [];
 let teleportEffects = [];
 let specialExplosions = [];
+let enemyDeathEffects = [];
 const blasts = new Map();
 
 function overlap(ax, ay, a, bx, by, b) {

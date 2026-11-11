@@ -140,6 +140,7 @@ function damageEnemy(enemy, amount) {
   enemy.hp = Math.max(0, enemy.hp - amount);
   enemy.hit = CFG.hurtFlash;
   if (enemy.hp === 0) {
+    enemyDeathEffects.push({ x: enemy.x, y: enemy.y, size: enemy.size, type: enemy.type, age: 0 });
     if (enemy.coin && rnd(10) < coinChanceTenths()) dropCoin(enemy);
     stats.kills++; sfx("enemyDie");
   } else sfx("hit");
@@ -719,6 +720,7 @@ function continueGame() {
   enemies = [];
   bullets = [];
   specialExplosions = [];
+  enemyDeathEffects = [];
   for (const point of spawnPoints) {
     if (point.pending > 0 || enemiesBeforeContinue.has(point)) {
       point.pending = spawnPointCount(point);

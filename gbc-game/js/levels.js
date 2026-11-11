@@ -57,6 +57,7 @@ function resetGame(keepUpgrades) {
   bullets = [];
   teleportEffects = [];
   specialExplosions = [];
+  enemyDeathEffects = [];
   blasts.clear();
   wave = 0;
   gameOver = false;

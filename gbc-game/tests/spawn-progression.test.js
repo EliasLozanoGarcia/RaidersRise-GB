@@ -15,7 +15,7 @@ function setup() {
       }, speedJitter: 0 };
     let level = 1;
     let stats = { kills: 0 }, gameOver = false, goSel = 0;
-    let enemies = [], players = [], bullets = [], specialExplosions = [], spawnPoints = [], wave = 0;
+    let enemies = [], players = [], bullets = [], specialExplosions = [], enemyDeathEffects = [], spawnPoints = [], wave = 0;
     function sfx() {}
   `, context);
   for (const file of ["utils.js", "progression.js", "tiles.js", "physics.js", "interactives.js", "levels.js", "entities.js"]) {

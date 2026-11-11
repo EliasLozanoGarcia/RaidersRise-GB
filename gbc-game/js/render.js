@@ -30,6 +30,40 @@ function makeHitImage(img, brighten = false) {
   }
 }
 
+function makeEnemyHitImages(images) {
+  const sheets = Object.entries(images).map(([key, img]) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+    return { key, canvas, ctx, data: ctx.getImageData(0, 0, canvas.width, canvas.height) };
+  });
+  const colors = new Set();
+  for (const { data } of sheets) {
+    const px = data.data;
+    for (let i = 0; i < px.length; i += 4) {
+      if (px[i + 3]) colors.add((px[i] << 16) | (px[i + 1] << 8) | px[i + 2]);
+    }
+  }
+  const brightness = (color) => 299 * (color >> 16) + 587 * ((color >> 8) & 255) + 114 * (color & 255);
+  const palette = [...colors].sort((a, b) => brightness(a) - brightness(b));
+  if (palette.length !== 4) throw new Error(`La paleta de enemigos debe tener 4 colores; tiene ${palette.length}`);
+  const lighter = new Map(palette.map((color, i) => [color, palette[Math.min(i + 1, palette.length - 1)]]));
+  const result = {};
+  for (const { key, canvas, ctx, data } of sheets) {
+    const px = data.data;
+    for (let i = 0; i < px.length; i += 4) {
+      if (!px[i + 3]) continue;
+      const color = lighter.get((px[i] << 16) | (px[i + 1] << 8) | px[i + 2]);
+      px[i] = color >> 16; px[i + 1] = (color >> 8) & 255; px[i + 2] = color & 255;
+    }
+    ctx.putImageData(data, 0, 0);
+    result[key] = canvas;
+  }
+  return result;
+}
+
 function drawMapTile(ctx, tx, ty, tileId, attr, hit = false, dy = 0, dx = 0) {
   if (tileId < 0) return;
   const screenX = tx * 8 - cam.x + dx;
@@ -540,6 +574,10 @@ function render() {
     const img = assets[e.sprite];
     ctx.drawImage(e.hit > 0 ? hitImages[e.sprite] || img : img, sprite.sx, sprite.sy, e.size, e.size,
       (e.x >> 8) - cam.x, y, e.size, e.size);
+  }
+  for (const effect of enemyDeathEffects) {
+    const offset = (effect.size - 8) >> 1;
+    ctx.drawImage(assets.enemyDeathImage, (effect.x >> 8) - cam.x + offset, enemySpriteY(effect) + offset);
   }
   ctx.restore();
   drawHud(ctx);

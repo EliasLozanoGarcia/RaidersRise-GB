@@ -76,6 +76,10 @@ function update() {
     effect.age++;
     return effect.age < CFG.teleportEffectFrames;
   });
+  enemyDeathEffects = enemyDeathEffects.filter((effect) => {
+    effect.age++;
+    return effect.age < CFG.enemyDeathFrames;
+  });
   updateSpecialExplosions();
   for (const [idx, timer] of blasts) {
     if (timer <= 1) blasts.delete(idx);
@@ -192,19 +196,21 @@ function updateBullets() {
 
 // ------------------------------------------------------------ Inicializacion
 // Hojas de sprites con version "golpeada" (flash al recibir dano). true = aclarar en vez de invertir la rampa de verdes.
-// Al anadir un personaje o enemigo nuevo, anade aqui su imagen (la clave es la de assets).
+// Al anadir un personaje nuevo, anade aqui su imagen (la clave es la de assets).
 const HIT_SPRITES = {
   playerImage: false, kurtImage: true, skreekImage: true,
-  enemyImage: false, bigSlugImage: false, beeImage: true,
 };
+const ENEMY_HIT_SPRITES = ["enemyImage", "bigSlugImage", "beeImage"];
 
 async function start() {
   assets = await DMGLoader.init();
   allLevels = assets.levels;
   initText();
+  initAboutQr();
   initComposites();
   initEnemyFrameBottoms();
   for (const [key, brighten] of Object.entries(HIT_SPRITES)) hitImages[key] = makeHitImage(assets[key], brighten);
+  Object.assign(hitImages, makeEnemyHitImages(Object.fromEntries(ENEMY_HIT_SPRITES.map((key) => [key, assets[key]]))));
   gbc.ctx.imageSmoothingEnabled = false;
   resetGame(); // carga el primer nivel (useLayout) y deja todo listo
 
