@@ -121,7 +121,8 @@ const GLYPH_COIN = PICKUP.coin, GLYPH_HEART = PICKUP.heart, GLYPH_DIGIT0 = 127; 
 
 // Texto: los glifos de la fuente 8x8 (ancho proporcional) se componen en 32 tiles libres del tileset
 // (ids 74-92 y 106-118, transparentes en el PNG) y despues se pintan como tiles.
-const FONT_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,/©";
+const FONT_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,ñ";
+const EXTRA_FONT_CHARS = "/©";
 const EXTRA_GLYPHS = [
   ["0000010", "0000100", "0000100", "0001000", "0010000", "0010000", "0100000"],
   ["0111110", "1000001", "1011101", "1010001", "1011101", "1000001", "0111110"],
@@ -156,17 +157,20 @@ function initText() {
   fc.fillStyle = "#7a953a";
   fc.fillRect(0, 0, f.width, f.height);
   assets.fontTinted = f;
-  for (let n = 0; n < FONT_CHARS.length; n++) {
-    const cx = (n % 8) * 8, cy = (n >> 3) * 8;
+  const allFontChars = FONT_CHARS + EXTRA_FONT_CHARS;
+  for (let n = 0; n < allFontChars.length; n++) {
+    const extraIndex = n - FONT_CHARS.length;
+    const cx = n < FONT_CHARS.length ? (n % 8) * 8 : extraIndex * 8;
+    const cy = n < FONT_CHARS.length ? (n >> 3) * 8 : assets.fontImage.height;
     let x0 = 8, x1 = -1;
     for (let x = 0; x < 8; x++) for (let y = 0; y < 8; y++) {
       if (data[((cy + y) * f.width + cx + x) * 4 + 3]) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
     }
-    fontGlyphs[FONT_CHARS[n]] = x1 < 0 ? { sx: cx, w: 0 } : { sx: cx + x0, w: x1 - x0 + 1 };
+    fontGlyphs[allFontChars[n]] = x1 < 0 ? { sx: cx, sy: cy, w: 0 } : { sx: cx + x0, sy: cy, w: x1 - x0 + 1 };
   }
 }
 
-const textNorm = (str) => String(str).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const textNorm = (str) => String(str).normalize("NFD").replace(/n\u0303/g, "ñ").replace(/[\u0300-\u036f]/g, "");
 function textWidth(str) {
   let w = 0;
   for (const ch of textNorm(str)) w += fontGlyphs[ch] ? fontGlyphs[ch].w + 1 : SPACE_W + 1;
@@ -182,7 +186,7 @@ function drawText(ctx, str, x, y) {
     let pen = 0;
     for (const ch of s) {
       const g = fontGlyphs[ch];
-      if (g && g.w) tileBufCtx.drawImage(assets.fontTinted, g.sx, (FONT_CHARS.indexOf(ch) >> 3) * 8, g.w, 8, pen, 0, g.w, 8);
+      if (g && g.w) tileBufCtx.drawImage(assets.fontTinted, g.sx, g.sy, g.w, 8, pen, 0, g.w, 8);
       pen += g ? g.w + 1 : SPACE_W + 1;
       if (pen >= TEXT_TILES * 8) break;
     }

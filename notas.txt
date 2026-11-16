@@ -1,7 +1,3 @@
-Crear Spawn Areas custom para Slugs, Big Slugs, Bees, Big Bees, etc... con algun parametro de cantidad, 
-Manten el Spawn tal coimo esta ahora para spam totalmente aleatorio de todo.
-
-
 Mejorar dash de Kurt, los sprites.
 
 Hacer sprites de Atabusk
