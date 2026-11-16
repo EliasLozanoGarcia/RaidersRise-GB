@@ -62,7 +62,7 @@ El fondo repite horizontalmente la primera columna de tiles del mockup.
 - **Kurt**: +50 % vida, más lento; ametralladora (15 balas/s con dispersión);
   especial 5x2 con daño x3 instantáneo.
 - **Skreek**: +25 % vida, más rápido; espada (5 golpes/s, 2 tiles delante);
-  especial: proyectil que atraviesa y destruye todo.
+  especial: proyectil que atraviesa enemigos y destruye obstáculos a su alcance.
 
 Con la barra de especial llena, mantén R (o Y en un mando) para marcar el área
 o trayectoria y suéltalo para activar la habilidad. El marcador y la explosión solo aparecen
@@ -70,15 +70,19 @@ en celdas sin colisión y en la mitad libre de los tiles de media colisión parc
 las mitades bloqueadas, y los tiles de colisión completa, no se marcan. Las
 monedas y los elementos transparentes se recomponen sobre el marcador.
 Las áreas diagonales se giran y usan el tile diagonal volteado en sus bordes;
-el daño de Kathy y Kurt sigue la misma forma. Kathy repite los cuatro tiles de
+los especiales de suelo de Kathy y Kurt atraviesan obstáculos y dañan dentro
+de toda el área, también al otro lado. Kathy repite los cuatro tiles de
 explosión (154–157 en Tiled), 0,2 segundos cada uno, mientras su área está
 activa; Kurt los reproduce una vez. Skreek no muestra explosión al lanzar su
 proyectil. Los valores y ritmos de daño de los tres personajes no cambian.
 
-Las balas detonan al acercarse a un enemigo y dañan a otros dentro del radio de
-la explosión. Las balas y las abejas atraviesan los tiles de colisión media,
-pero no los sólidos; los personajes y enemigos terrestres no pueden atravesar
-ninguno de los dos. Empujar un cofre durante 1,5 segundos suma monedas al
+Los proyectiles de la bazuca detonan al acercarse a un enemigo y dañan a otros
+dentro del radio de la explosión. La espada, los proyectiles y las explosiones
+de bazuca respetan las colisiones medias y totales, sin dañar al otro lado;
+los proyectiles permanecen inmóviles brevemente al impactar.
+Las abejas atraviesan los tiles de colisión media, pero no los sólidos; los
+personajes y enemigos terrestres no pueden atravesar ninguno de los dos.
+Empujar un cofre durante 1,5 segundos suma monedas al
 inventario y deja monedas recogibles sobre el cofre y en celdas transitables
 cercanas. Los enemigos derrotados también pueden soltar monedas: camina sobre
 ellas para recogerlas; el total aparece en el HUD. Los enemigos varían

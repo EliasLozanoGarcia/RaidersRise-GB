@@ -496,10 +496,17 @@ function render() {
   for (const p of players) {
     if (!p.active || !(p.slash > 0) || !p.slashRect) continue;
     const r = p.slashRect;
+    ctx.save();
+    ctx.beginPath();
+    for (let y = r.y + 2; y < r.y + r.h - 2; y++) for (let x = r.x + 2; x < r.x + r.w - 2; x++) {
+      if (attackPathClear(p.slashOrigin.x, p.slashOrigin.y, x, y)) ctx.rect(x - cam.x, y - cam.y, 1, 1);
+    }
+    ctx.clip();
     ctx.fillStyle = "#fff";
     ctx.fillRect(r.x - cam.x + 2, r.y - cam.y + 2, r.w - 4, r.h - 4);
     ctx.fillStyle = "#7a953a";
     ctx.fillRect(r.x - cam.x + 5, r.y - cam.y + 5, r.w - 10, r.h - 10);
+    ctx.restore();
   }
 
   for (const b of bullets) {

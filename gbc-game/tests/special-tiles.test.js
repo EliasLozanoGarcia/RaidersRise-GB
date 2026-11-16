@@ -207,7 +207,7 @@ test("el marcador invertido y diagonal sigue la trayectoria real del proyectil",
   }
 });
 
-test("el marcador del proyectil omite colision media pero continua hasta el muro", () => {
+test("el marcador del proyectil se detiene ante la colision media", () => {
   const run = setup();
   run(`
     const p = { id: 0, ch: { ult: "beam" }, x: 16 << 8, y: 32 << 8, facing: 5, mana: 100 };
@@ -217,8 +217,97 @@ test("el marcador del proyectil omite colision media pero continua hasta el muro
     updateSpecial(p, BTN.SELECT);
   `);
   assert.equal(run("p.sp.cells.some(c => c.tx === 5 || c.tx === 7)"), false);
-  assert.equal(run("p.sp.cells.some(c => c.tx === 9)"), true);
-  assert.equal(run("p.sp.cells.some(c => c.tx >= 10)"), false);
+  assert.equal(run("p.sp.cells.at(-1).tx"), 4);
+  assert.equal(run("p.sp.cells.some(c => c.tx >= 5)"), false);
+});
+
+test("los especiales de suelo atraviesan obstaculos rectos y diagonales", () => {
+  for (const ult of ["area", "burst"]) for (const tile of [0, 8]) for (const facing of [5, 6]) {
+    const run = setup();
+    run(`
+      const p = { id: 0, ch: { ult: "${ult}", img: "playerImage" }, x: 16 << 8, y: 32 << 8,
+        facing: ${facing}, row: 0, mana: 100, active: true, hp: 100, shield: 1 };
+      players = [p];
+      for (let y = 0; y < MAP_H; y++) itemsLayer[y * MAP_W + 4] = ${tile};
+      updateSpecial(p, BTN.SELECT);
+      const target = specialMarkerCells(p.sp).find(c => c.tx > 4 && (!p.sp.diagonal || c.id === 124));
+    `);
+    assert.equal(run("!!target"), true, `${ult}, tile ${tile}, facing ${facing}`);
+    run(`
+      enemies = [{ x: (target.tx * 8 + 3) << 8, y: (target.ty * 8 + 3) << 8,
+        box: {x:0,y:0,w:2,h:2}, hp: 10 }];
+      const q = { id: 1, ch: { img: "playerImage" }, active: true, hp: 10, shield: 0,
+        x: (target.tx * 8 - 4) << 8, y: (target.ty * 8 - 10) << 8, facing: 5, row: 0 };
+      players.push(q);
+      updateSpecial(p, 0);
+      if (p.ch.ult === "area") for (let i = 0; i < 30; i++) updateSpecial(p, 0);
+      const enemyHp = enemies[0].hp;
+      enemies = [];
+      draws.length = 0;
+      render();
+    `);
+    assert.equal(run("enemyHp"), ult === "area" ? 9 : 7);
+    assert.equal(run("q.hp"), ult === "area" ? 9 : 10);
+    assert.equal(run("itemHits.filter(([x, y]) => x === target.tx * 8 + 4 && y === target.ty * 8 + 4).length"), 1);
+    assert.equal(run("draws.some(c => c.tx === target.tx && c.ty === target.ty && c.id >= 153 && c.id <= 156)"), true);
+  }
+});
+
+test("la explosion de la bazuca no dana ni se dibuja detras de una pared", () => {
+  const run = setup();
+  run(`
+    CFG.bulletGroundOffset = 6; CFG.blastFrames = 10;
+    const blastRadius = () => 20;
+    for (let y = 0; y < MAP_H; y++) itemsLayer[y * MAP_W + 4] = 0;
+    enemies = [
+      { x: 26 << 8, y: 34 << 8, box: {x:0,y:0,w:2,h:2}, hp: 10 },
+      { x: 42 << 8, y: 34 << 8, box: {x:0,y:0,w:2,h:2}, hp: 10 }
+    ];
+    explode(27, 35);
+  `);
+  assert.equal(run("enemies[0].hp"), 9);
+  assert.equal(run("enemies[1].hp"), 10);
+  assert.equal(run("Array.from(blasts.keys()).some(idx => idx % MAP_W > 4)"), false);
+});
+
+test("la espada no golpea enemigos ni objetos detras de un muro", () => {
+  const run = setup();
+  run(`
+    BTN.A = 1; input.held = [BTN.A, 0];
+    const fireDelay = () => 10;
+    for (let y = 0; y < MAP_H; y++) itemsLayer[y * MAP_W + 4] = 0;
+    players = [{ id: 0, active: true, hp: 10, x: 20 << 8, y: 32 << 8,
+      ch: { weapon: "sword", ult: "area" }, facing: 5, cd: 0, reloadT: 0, mana: 100 }];
+    enemies = [{ x: 34 << 8, y: 42 << 8, box: {x:0,y:0,w:4,h:4}, hp: 10 }];
+    updatePlayer(players[0]);
+  `);
+  assert.equal(run("players[0].slash"), 4);
+  assert.equal(run("enemies[0].hp"), 10);
+  assert.equal(run("itemHits.some(([x]) => x >= 40)"), false);
+  run(`
+    for (let y = 0; y < MAP_H; y++) itemsLayer[y * MAP_W + 4] = -1;
+    players[0].cd = 0;
+    updatePlayer(players[0]);
+  `);
+  assert.equal(run("enemies[0].hp"), 9);
+});
+
+test("la boca del arma no genera proyectiles al otro lado de un muro cercano", () => {
+  const run = setup();
+  run(`
+    BTN.A = 1; input.held = [BTN.A, 0];
+    CFG.bulletGroundOffset = 6; CFG.bulletLinger = 4;
+    const fireDelay = () => 10, bulletRange = () => 88;
+    for (let y = 0; y < MAP_H; y++) itemsLayer[y * MAP_W + 4] = 0;
+    players = [{ id: 0, active: true, hp: 10, x: 20 << 8, y: 32 << 8,
+      ch: { weapon: "gun", img: "kurtImage", ult: "area" }, facing: 5,
+      cd: 0, reloadT: 0, mana: 100, ammo: 10 }];
+    updatePlayer(players[0]);
+  `);
+  assert.equal(run("bullets.length"), 1);
+  assert.equal(run("bullets[0].x >> 8"), 32);
+  assert.equal(run("bullets[0].linger"), 5);
+  assert.equal(run("itemHits.length"), 1);
 });
 
 test("el marcador diagonal del proyectil no se prolonga detras de un muro", () => {

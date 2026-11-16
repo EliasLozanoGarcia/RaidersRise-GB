@@ -3,7 +3,7 @@
 function getTileCollision(tileId) {
   if (tileId < 0) return 0;
   if (COL_TOTAL.has(tileId) || COL_TOTAL_T.has(tileId) || COL_TOTAL_R.has(tileId) || COL_TOTAL_D.has(tileId) || COL_TOTAL_L.has(tileId)) return 2; // Total
-  if (COL_MEDIA.has(tileId) || COL_MEDIA_T.has(tileId) || COL_MEDIA_R.has(tileId) || COL_MEDIA_D.has(tileId) || COL_MEDIA_L.has(tileId)) return 1; // Media (permite balas)
+  if (COL_MEDIA.has(tileId) || COL_MEDIA_T.has(tileId) || COL_MEDIA_R.has(tileId) || COL_MEDIA_D.has(tileId) || COL_MEDIA_L.has(tileId)) return 1; // Media (permite enemigos voladores)
   return 0;
 }
 
@@ -125,18 +125,35 @@ function unstickPlayer(p, snap) {
   return true;
 }
 
-// Colision de una bala con muros (en el suelo: gy). Es permisiva en los bordes: ademas del punto central, tienen que
-// estar bloqueados los dos puntos a +-CFG.bulletEdgeSlack px en perpendicular a su trayectoria. Si solo roza una
-// esquina o el borde de un tile, el punto lateral esta libre y la bala sigue.
 function bulletBlocked(b, bx, gy) {
-  if (!boxBlocked(bx, gy, BBOX, true, false)) return false;
-  const e = CFG.bulletEdgeSlack;
-  if (!e) return true;
-  const ax = Math.abs(b.vx), ay = Math.abs(b.vy);
-  const sx = ax * 2 >= ay ? Math.sign(b.vx) : 0;
-  const sy = ay * 2 >= ax ? Math.sign(b.vy) : 0;
-  const px = -sy * e, py = sx * e; // perpendicular a la trayectoria
-  return boxBlocked(bx + px, gy + py, BBOX, true, false) && boxBlocked(bx - px, gy - py, BBOX, true, false);
+  return boxBlocked(bx, gy, BBOX, false, false);
+}
+
+// Comprueba cada pixel para evitar saltar colisiones estrechas o parciales.
+function attackPathClear(x0, y0, x1, y1) {
+  const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+  for (let i = 1; i <= steps; i++) {
+    const x = Math.round(x0 + (x1 - x0) * i / steps);
+    const y = Math.round(y0 + (y1 - y0) * i / steps);
+    if (boxBlocked(x, y, BBOX, false, false)) return false;
+  }
+  return true;
+}
+
+function attackReachesBox(x, y, bx, by, box, offsetY = 0) {
+  const tx = Math.max(bx + box.x, Math.min(x, bx + box.x + box.w - 1));
+  const ty = Math.max(by + box.y, Math.min(y - offsetY, by + box.y + box.h - 1)) + offsetY;
+  return attackPathClear(x, y, tx, ty);
+}
+
+function attackReachesItem(x0, y0, x1, y1) {
+  const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+  for (let i = 1; i <= steps; i++) {
+    const x = Math.round(x0 + (x1 - x0) * i / steps);
+    const y = Math.round(y0 + (y1 - y0) * i / steps);
+    if (boxBlocked(x, y, BBOX, false, false)) return (x >> 3) === (x1 >> 3) && (y >> 3) === (y1 >> 3);
+  }
+  return true;
 }
 
 function findFree(x, y, box, extra) {

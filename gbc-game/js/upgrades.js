@@ -19,8 +19,8 @@ const CHARS = [
             en: { weapon: "Machine gun, 15 bullets per second with spread. Lots of HP, but slow.", special: "5x2 area with instant x3 damage." } } },
   { name: "SKREEK", img: "skreekImage", hp: 320, speed: 294, ammo: 256, delay: 12, dash: true, weapon: "sword", ult: "beam",
     ui: { spd: 4, hp: 4, dmg: 4 },
-    info: { es: { weapon: "Espada, 5 golpes por segundo, alcance de 2 tiles. Rapido y resistente.", special: "Proyectil que atraviesa y destruye todo." },
-            en: { weapon: "Sword, 5 hits per second, 2 tile reach. Fast and sturdy.", special: "Projectile that pierces and destroys everything." } } },
+    info: { es: { weapon: "Espada, 5 golpes por segundo, alcance de 2 tiles. Rapido y resistente.", special: "Proyectil que atraviesa enemigos y se detiene en obstaculos." },
+            en: { weapon: "Sword, 5 hits per second, 2 tile reach. Fast and sturdy.", special: "Projectile pierces enemies and stops at obstacles." } } },
 ];
 const chars = [0, 1];
 const maxHp = (p) => ((CFG.playerHp * p.ch.hp + 128) >> 8) + lv("hp");

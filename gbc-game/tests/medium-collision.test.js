@@ -16,11 +16,15 @@ function setup() {
     const CFG = { bulletEdgeSlack: 2, bulletHitPad: 2, bulletGroundOffset: 6,
       bulletLinger: 4, fuseRadius: 8, barrierHp: 1, hurtFlash: 6, nudgePixels: 3 };
     let enemies = [], bullets = [];
-    function overlap() { return false; }
+    function overlap(ax, ay, a, bx, by, b) {
+      return ax + a.x < bx + b.x + b.w && ax + a.x + a.w > bx + b.x &&
+        ay + a.y < by + b.y + b.h && ay + a.y + a.h > by + b.y;
+    }
     function sfx() {}
     function lv() { return 0; }
-    function explode() {}
-    function damageEnemy() {}
+    function explode() { explosions++; }
+    function damageEnemy(e, n) { e.hp -= n; }
+    let explosions = 0;
   `, context);
   for (const file of ["tiles.js", "physics.js", "interactives.js"]) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8"), context);
@@ -37,7 +41,7 @@ function setup() {
   return (code) => vm.runInContext(code, context);
 }
 
-test("todos los IDs medios atraviesan la colision de balas y abejas", () => {
+test("todos los IDs medios permiten el paso a las abejas", () => {
   const run = setup();
   const ids = run("Array.from(new Set([...COL_MEDIA, ...COL_MEDIA_T, ...COL_MEDIA_R, ...COL_MEDIA_D, ...COL_MEDIA_L]))");
   for (const id of ids) {
@@ -65,7 +69,7 @@ test("abejas atraviesan tiles medios pero no solidos ni limites del mapa", () =>
   assert.equal(run("boxBlocked(24, 24, BBOX, true)"), true);
 });
 
-test("una abeja y una bala atraviesan el tile 8 real de Level1-1", () => {
+test("una abeja atraviesa el tile 8 real de Level1-1", () => {
   const run = setup();
   const readLayer = (name) => fs.readFileSync(path.join(__dirname, "..", "maps", name), "utf8")
     .trim().split(/\r?\n/).flatMap((row) => row.split(",").map((value) => {
@@ -79,13 +83,8 @@ test("una abeja y una bala atraviesan el tile 8 real de Level1-1", () => {
   run(`
     var bee = { x: 50 << 8, y: 40 << 8, flying: true };
     for (let i = 0; i < 18; i++) tryMove(bee, 256, 0, { x: 1, y: 1, w: 6, h: 6 }, false);
-    bullets = [{ x: 50 << 8, y: 40 << 8, vx: 3 << 8, vy: 0, life: 100 << 8, direct: true }];
-    for (let i = 0; i < 6; i++) updateBullets();
   `);
   assert.equal(run("bee.x >> 8"), 68);
-  assert.equal(run("bullets.length"), 1);
-  assert.equal(run("bullets[0].x >> 8"), 68);
-  assert.equal(run("bullets[0].linger"), undefined);
 });
 
 test("Level1-2 distingue el tile 8 del borde inferior solido", () => {
@@ -102,12 +101,8 @@ test("Level1-2 distingue el tile 8 del borde inferior solido", () => {
   run(`
     var bee = { x: 80 << 8, y: 200 << 8, flying: true };
     for (let i = 0; i < 20; i++) tryMove(bee, 0, -256, { x: 1, y: 1, w: 6, h: 6 }, false);
-    bullets = [{ x: 84 << 8, y: 205 << 8, vx: 0, vy: -3 << 8, life: 100 << 8, direct: true }];
-    for (let i = 0; i < 7; i++) updateBullets();
   `);
   assert.equal(run("bee.y >> 8"), 180);
-  assert.equal(run("bullets.length"), 1);
-  assert.equal(run("bullets[0].linger"), undefined);
   assert.equal(run("fondoLayer[30 * MAP_W + 10]"), 7);
   assert.equal(run("fondoLayer[31 * MAP_W + 10]"), 39);
   assert.equal(run("getTileCollision(7)"), 2);
@@ -130,37 +125,29 @@ test("Level1-7 permite atravesar filas reales y paredes de tiles 40 y 41", () =>
   run(`
     var bee = { x: 72 << 8, y: 200 << 8, flying: true };
     for (let i = 0; i < 24; i++) tryMove(bee, 0, -256, { x: 1, y: 1, w: 6, h: 6 }, false);
-    bullets = [{ x: 76 << 8, y: 205 << 8, vx: 0, vy: -3 << 8, life: 100 << 8, direct: true }];
-    for (let i = 0; i < 9; i++) updateBullets();
   `);
   assert.equal(run("bee.y >> 8"), 176);
-  assert.equal(run("bullets.length"), 1);
-  assert.equal(run("bullets[0].linger"), undefined);
   run(`
     bee = { x: 32 << 8, y: 120 << 8, flying: true };
     for (let i = 0; i < 24; i++) tryMove(bee, 256, 0, { x: 1, y: 1, w: 6, h: 6 }, false);
-    bullets = [{ x: 32 << 8, y: 116 << 8, vx: 3 << 8, vy: 0, life: 100 << 8, direct: true }];
-    for (let i = 0; i < 8; i++) updateBullets();
   `);
   assert.equal(run("bee.x >> 8"), 56);
-  assert.equal(run("bullets.length"), 1);
-  assert.equal(run("bullets[0].linger"), undefined);
   assert.equal(run("boxBlocked(40, 120, { x: 0, y: 0, w: 8, h: 8 }, false)"), true);
 });
 
-test("proyectiles atraviesan barreras medias y las golpean una vez", () => {
+test("proyectiles se detienen en barreras medias y las golpean una vez", () => {
   const run = setup();
   run(`
     itemsLayer[3 * MAP_W + 3] = 19;
-    bullets = [{ x: 21 << 8, y: 24 << 8, vx: 1 << 8, vy: 0, life: 100 << 8, direct: true }];
+    bullets = [{ x: 23 << 8, y: 24 << 8, vx: 1 << 8, vy: 0, life: 100 << 8, direct: true }];
     updateBullets();
   `);
   assert.equal(run("bullets.length"), 1);
-  assert.equal(run("bullets[0].linger"), undefined);
+  assert.equal(run("bullets[0].linger"), 4);
   assert.equal(run("itemsLayer[3 * MAP_W + 3]"), 21);
   run("updateBullets(); updateBullets(); updateBullets()");
   assert.equal(run("itemsLayer[3 * MAP_W + 3]"), 21);
-  assert.equal(run("bullets[0].linger"), undefined);
+  assert.equal(run("bullets[0].x >> 8"), 24);
 });
 
 test("proyectiles siguen chocando con lucky blocks y tiles solidos", () => {
@@ -177,7 +164,7 @@ test("proyectiles siguen chocando con lucky blocks y tiles solidos", () => {
   assert.equal(run("bulletBlocked({ vx: 256, vy: 0 }, 27, 27)"), true);
 });
 
-test("el rayo atraviesa tiles medios y se detiene ante solidos", () => {
+test("el rayo se detiene ante tiles medios", () => {
   const run = setup();
   run(`
     itemsLayer[3 * MAP_W + 3] = 8;
@@ -185,6 +172,88 @@ test("el rayo atraviesa tiles medios y se detiene ante solidos", () => {
     updateBullets();
   `);
   assert.equal(run("bullets.length"), 1);
-  run("itemsLayer[3 * MAP_W + 3] = 0; updateBullets()");
+  assert.equal(run("bullets[0].linger"), 4);
+  run("for (let i = 0; i < 4; i++) updateBullets()");
   assert.equal(run("bullets.length"), 0);
+});
+
+test("cada proyectil se detiene en el primer pixel bloqueado y nunca dana al otro lado", () => {
+  for (const kind of ["direct", "rocket", "beam"]) for (const tile of [0, 8]) {
+    const run = setup();
+    const y = kind === "beam" ? 27 : 21;
+    run(`
+      itemsLayer[3 * MAP_W + 3] = ${tile};
+      enemies = [{ x: 25 << 8, y: ${y} << 8, box: { x: 0, y: 0, w: 4, h: 4 }, hp: 100 }];
+      bullets = [{ x: 20 << 8, y: ${y} << 8, vx: 20 << 8, vy: 0, life: 100 << 8,
+        direct: ${kind === "direct"}, beam: ${kind === "beam"} }];
+      updateBullets();
+    `);
+    assert.equal(run("enemies[0].hp"), 100, `${kind}, tile ${tile}`);
+    assert.equal(run("explosions"), 0);
+    assert.equal(run("bullets[0].x >> 8"), 24);
+    assert.equal(run("bullets[0].linger"), 4);
+    run("for (let i = 0; i < 3; i++) updateBullets()");
+    assert.equal(run("bullets[0].x >> 8"), 24);
+    assert.equal(run("enemies[0].hp"), 100);
+    run("updateBullets()");
+    assert.equal(run("bullets.length"), 0);
+  }
+});
+
+test("los proyectiles respetan mitades de tile y colisiones diagonales sin saltarlas", () => {
+  const run = setup();
+  run(`
+    itemsLayer[3 * MAP_W + 3] = 20;
+    bullets = [{ x: 20 << 8, y: 18 << 8, vx: 12 << 8, vy: 0, life: 100 << 8, direct: true }];
+    updateBullets();
+  `);
+  assert.equal(run("bullets[0].x >> 8"), 24);
+  assert.equal(run("bullets[0].linger"), 4);
+  run(`
+    bullets = [{ x: 20 << 8, y: 22 << 8, vx: 12 << 8, vy: 0, life: 100 << 8, direct: true }];
+    updateBullets();
+  `);
+  assert.equal(run("bullets[0].x >> 8"), 32);
+  assert.equal(run("bullets[0].linger"), undefined);
+  run(`
+    itemsLayer[3 * MAP_W + 3] = 0;
+    bullets = [{ x: 20 << 8, y: 14 << 8, vx: 12 << 8, vy: 12 << 8, life: 100 << 8, direct: true }];
+    updateBullets();
+  `);
+  assert.equal(run("bullets[0].x >> 8"), 24);
+  assert.equal(run("bullets[0].y >> 8"), 18);
+  assert.equal(run("bullets[0].linger"), 4);
+});
+
+test("un disparo que nace dentro de una pared queda detenido sin danar enemigos", () => {
+  const run = setup();
+  run(`
+    itemsLayer[3 * MAP_W + 3] = 0;
+    enemies = [{ x: 26 << 8, y: 21 << 8, box: { x: 0, y: 0, w: 4, h: 4 }, hp: 10 }];
+    bullets = [{ x: 24 << 8, y: 21 << 8, vx: 3 << 8, vy: 0, life: 100 << 8, direct: true }];
+    updateBullets();
+  `);
+  assert.equal(run("bullets[0].x >> 8"), 24);
+  assert.equal(run("bullets[0].linger"), 4);
+  assert.equal(run("enemies[0].hp"), 10);
+});
+
+test("los proyectiles siguen alcanzando enemigos visibles y el rayo solo golpea una vez por frame", () => {
+  for (const kind of ["direct", "rocket", "beam"]) {
+    const run = setup();
+    const y = kind === "beam" ? 27 : 21;
+    run(`
+      enemies = [{ x: 25 << 8, y: ${y} << 8, box: { x: 0, y: 0, w: 4, h: 4 }, hp: 300 }];
+      bullets = [{ x: 20 << 8, y: ${y} << 8, vx: 10 << 8, vy: 0, life: 100 << 8,
+        direct: ${kind === "direct"}, beam: ${kind === "beam"} }];
+      updateBullets();
+    `);
+    if (kind === "rocket") {
+      assert.equal(run("explosions"), 1);
+      assert.equal(run("bullets.length"), 0);
+    } else {
+      assert.equal(run("enemies[0].hp"), kind === "beam" ? 201 : 299);
+      assert.equal(run("bullets.length"), kind === "beam" ? 1 : 0);
+    }
+  }
 });

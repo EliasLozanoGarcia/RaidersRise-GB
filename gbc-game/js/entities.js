@@ -152,7 +152,9 @@ function explode(cx, cy) {
     if (enemy.hp <= 0) continue;
     const dx = (enemy.x >> 8) + 4 - cx;
     const dy = (enemy.y >> 8) + 4 - cy;
-    if (dx * dx + dy * dy <= radius * radius) damageEnemy(enemy, 1 + lv("dmg"));
+    if (dx * dx + dy * dy <= radius * radius &&
+        attackReachesBox(cx, cy + CFG.bulletGroundOffset, enemy.x >> 8, enemy.y >> 8, enemy.box, CFG.bulletGroundOffset))
+      damageEnemy(enemy, 1 + lv("dmg"));
   }
 
   for (let ty = (cy - radius) >> 3; ty <= (cy + radius) >> 3; ty++) {
@@ -160,7 +162,8 @@ function explode(cx, cy) {
       if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H || getCellCollision(tx, ty) !== 0) continue;
       const nearestX = Math.max(tx * 8, Math.min(cx, tx * 8 + 8));
       const nearestY = Math.max(ty * 8, Math.min(cy, ty * 8 + 8));
-      if ((nearestX - cx) ** 2 + (nearestY - cy) ** 2 <= radius * radius) {
+      if ((nearestX - cx) ** 2 + (nearestY - cy) ** 2 <= radius * radius &&
+          attackPathClear(cx, cy + CFG.bulletGroundOffset, tx * 8 + 4, ty * 8 + 4)) {
         blasts.set(ty * MAP_W + tx, CFG.blastFrames);
       }
     }
@@ -398,11 +401,17 @@ function updatePlayer(p) {
       const cx = (p.x >> 8) + 8 + ((u[0] * 12 + 128) >> 8), cy = (p.y >> 8) + 12 + ((u[1] * 12 + 128) >> 8);
       const r = { x: cx - 8, y: cy - 8, w: 16, h: 16 };
       p.slashRect = r;
+      p.slashOrigin = { x: (p.x >> 8) + 8, y: (p.y >> 8) + 12 };
       p.slash = 4;
       for (const e of enemies) {
-        if (e.hp > 0 && overlap(e.x >> 8, e.y >> 8, e.box, 0, 0, r)) damageEnemy(e, 1 + lv("dmg"));
+        if (e.hp > 0 && overlap(e.x >> 8, e.y >> 8, e.box, 0, 0, r) &&
+            attackReachesBox(p.slashOrigin.x, p.slashOrigin.y, e.x >> 8, e.y >> 8, e.box))
+          damageEnemy(e, 1 + lv("dmg"));
       }
-      for (const [ox, oy] of [[2, 2], [10, 2], [2, 10], [10, 10]]) checkBulletHitItems(r.x + ox + 2, r.y + oy + 2);
+      const itemPoints = [[2, 2], [10, 2], [2, 10], [10, 10]]
+        .map(([ox, oy]) => [r.x + ox + 2, r.y + oy + 2])
+        .filter(([x, y]) => attackReachesItem(p.slashOrigin.x, p.slashOrigin.y, x, y));
+      for (const [x, y] of itemPoints) checkBulletHitItems(x, y);
       p.cd = fireDelay(p);
       sfx("hit");
       stats.shots++;
@@ -430,18 +439,31 @@ function updatePlayer(p) {
      // Identificamos a Kurt directamente por su ID de imagen
       const currentTipTable = (p.ch.img === "kurtImage") ? GUN_TIP : BAZOOKA_TIP;
       const tip = currentTipTable[p.facing][p.row % 2 ? 1 : 0];
-    
-      
-      bullets.push({
-        x: ((p.x >> 8) + tip[0]) * 256 + 128, 
-        y: ((p.y >> 8) + tip[1]) * 256 + 128, 
+      const startX = ((p.x >> 8) + 8) * 256 + 128;
+      const startY = ((p.y >> 8) + 12 - CFG.bulletGroundOffset) * 256 + 128;
+      const tipX = ((p.x >> 8) + tip[0]) * 256 + 128;
+      const tipY = ((p.y >> 8) + tip[1]) * 256 + 128;
+      const steps = Math.max(1, Math.ceil(Math.max(Math.abs(tipX - startX), Math.abs(tipY - startY)) / 256));
+      let x = tipX, y = tipY, blocked = false;
+      for (let step = 0; step <= steps; step++) {
+        x = startX + Math.trunc((tipX - startX) * step / steps);
+        y = startY + Math.trunc((tipY - startY) * step / steps);
+        if (bulletBlocked(null, x >> 8, (y >> 8) + CFG.bulletGroundOffset)) { blocked = true; break; }
+      }
+      const shot = {
+        x, y,
         vx, vy, 
         life: bulletRange() << 8, 
         direct: gun, 
         bulletFrame, 
         mirror, 
-        img: gun ? "shotSmallImage" : "shotBigImage" 
-      });
+        img: gun ? "shotSmallImage" : "shotBigImage"
+      };
+      if (blocked) {
+        checkBulletHitItems(x >> 8, (y >> 8) + CFG.bulletGroundOffset);
+        shot.linger = CFG.bulletLinger + 1;
+      }
+      bullets.push(shot);
       p.cd = fireDelay(p);
       if (!gun || stats.shots % 3 === 0) sfx("shot");
       stats.shots++;
@@ -543,11 +565,12 @@ function diagonalCells(area) {
 
 function specialMarkerCells(sp) {
   if (sp.beam) return sp.cells;
-  if (sp.diagonal) return diagonalCells(sp.diagonal).filter((cell) => specialFloor(cell.tx, cell.ty));
+  const visible = (cell) => specialFloor(cell.tx, cell.ty);
+  if (sp.diagonal) return diagonalCells(sp.diagonal).filter(visible);
   const cells = [];
   for (let y = 0; y < sp.h; y++) for (let x = 0; x < sp.w; x++) {
     const tx = sp.tx + x, ty = sp.ty + y;
-    if (specialFloor(tx, ty)) cells.push({ tx, ty, ...specialMarkerTile(x, y, sp.w, sp.h) });
+    if (visible({ tx, ty })) cells.push({ tx, ty, ...specialMarkerTile(x, y, sp.w, sp.h) });
   }
   return cells;
 }
@@ -562,15 +585,22 @@ function aimBeam(p) {
   let x = beam.x, y = beam.y, life = beam.life;
   const cells = [], seen = new Set();
   while (life > 0) {
-    x += beam.vx; y += beam.vy;
     life -= Math.max(Math.abs(beam.vx), Math.abs(beam.vy));
     if (life <= 0) break;
+    const oldX = x, oldY = y;
+    const steps = Math.max(1, Math.ceil(Math.max(Math.abs(beam.vx), Math.abs(beam.vy)) / 256));
+    let blocked = false;
+    for (let step = 1; step <= steps; step++) {
+      x = oldX + Math.trunc(beam.vx * step / steps);
+      y = oldY + Math.trunc(beam.vy * step / steps);
+      if (bulletBlocked(beam, x >> 8, y >> 8)) { blocked = true; break; }
+    }
+    if (blocked) break;
     const px = x >> 8, py = y >> 8, tx = px >> 3, ty = py >> 3;
     if (specialFloor(tx, ty)) {
       const idx = ty * MAP_W + tx;
       if (!seen.has(idx)) { seen.add(idx); cells.push({ tx, ty }); }
     }
-    if (boxBlocked(px, py, BBOX, true, false)) break;
   }
   const vertical = Math.abs(beam.vy) > Math.abs(beam.vx);
   const reverse = vertical ? beam.vy < 0 : beam.vx < 0;
@@ -589,7 +619,8 @@ function aimBeam(p) {
     const area = alongU
       ? { minU: minAlong, maxU: maxAlong, minV: minAcross, maxV: maxAcross }
       : { minU: minAcross, maxU: maxAcross, minV: minAlong, maxV: maxAlong };
-    return { state: "aim", beam, cells: diagonalCells(area).filter((cell) => specialFloor(cell.tx, cell.ty)) };
+    return { state: "aim", beam, cells: diagonalCells(area).filter((cell) =>
+      specialFloor(cell.tx, cell.ty) && attackPathClear(beam.x >> 8, beam.y >> 8, cell.tx * 8 + 4, cell.ty * 8 + 4)) };
   }
   cells.forEach((cell, i) => {
     const pos = reverse ? cells.length - 1 - i : i;
@@ -616,7 +647,8 @@ function specialHit(p, sp, mult, hurtPlayers) {
         right > (a.minU + a.minV) * 4 && l < (a.maxU + a.maxV) * 4 &&
         bottom > (a.minU - a.maxV) * 4 && t < (a.maxU - a.minV) * 4;
     };
-    for (const e of enemies) if (e.hp > 0 && intersects(e.x >> 8, e.y >> 8, e.box)) damageEnemy(e, specialDamage() * mult);
+    for (const e of enemies) if (e.hp > 0 && intersects(e.x >> 8, e.y >> 8, e.box))
+      damageEnemy(e, specialDamage() * mult);
     for (const cell of diagonalCells(a)) {
       if (cell.tx >= 0 && cell.ty >= 0 && cell.tx < MAP_W && cell.ty < MAP_H)
         checkBulletHitItems(cell.tx * 8 + 4, cell.ty * 8 + 4);
@@ -635,8 +667,7 @@ function specialHit(p, sp, mult, hurtPlayers) {
   for (let k = 0; k < sp.w * sp.h; k++) {
     checkBulletHitItems((sp.tx + (k % sp.w)) * 8 + 4, (sp.ty + ((k / sp.w) | 0)) * 8 + 4);
   }
-  if (!hurtPlayers) return;
-  for (const q of players) {
+  if (hurtPlayers) for (const q of players) {
     if (q.active && q.hp > 0 && !q.tp && q.shield === 0 && overlap(q.x >> 8, q.y >> 8, PBOX, 0, 0, r)) {
       q.hp -= specialDamage();
       q.hit = CFG.hurtFlash;

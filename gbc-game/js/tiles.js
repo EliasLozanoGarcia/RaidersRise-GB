@@ -22,7 +22,7 @@ const COL_TOTAL = new Set([
 
 const COL_MEDIA = new Set([
   8, 9, 10, 11, 12, 13, 19, 21, 23, 30, 31, 40, 41, 42, 43, 44, 45, 73, 104, 105, 126, 127,
-  110, 111 // muro bajable, ultima fase: bloquea el paso pero no las balas ni cosas que vuelen
+  110, 111 // muro bajable, ultima fase: bloquea el paso pero no a los enemigos voladores
 ]);
 
 let itemsLayer = [];
