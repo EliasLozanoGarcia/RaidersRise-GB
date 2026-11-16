@@ -90,7 +90,8 @@ test("el panel sigue el mockup y alterna jugadores sin cambiar sus datos", () =>
   const run = setup();
   run("drawHud(ctx)");
   assert.equal(run("calls.filter(c => c.kind === 'bar' && c.image === 'top').length"), 18);
-  assert.equal(run("[80,81,103,104,119,120,125,126,127].every(id => calls.some(c => c.kind === 'tile' && c.id === id))"), true);
+  assert.equal(run("[80,81,103,104,105,119,120,125,126,127].every(id => calls.some(c => c.kind === 'tile' && c.id === id))"), true);
+  assert.equal(run("calls.some(c => c.kind === 'tile' && c.id === 105 && c.x === 48 && c.y === 120)"), true);
   assert.equal(run("calls.filter(c => c.kind === 'icon').map(c => c.id).join(',')"), "152,154,153,155");
   assert.equal(run("calls.filter(c => c.kind === 'number').map(c => c.value).join(',')"), "9,99,99");
   run(`
@@ -103,14 +104,10 @@ test("el panel sigue el mockup y alterna jugadores sin cambiar sus datos", () =>
   assert.equal(run("calls.filter(c => c.kind === 'number').map(c => c.value).join(',')"), "9,99,99,1");
 });
 
-test("la recarga parpadea fuera del panel e identifica a ambos jugadores", () => {
+test("la recarga no dibuja texto en el HUD", () => {
   const run = setup();
   run(`players[0].reloadT = 20; frame = 8; drawHud(ctx)`);
-  assert.equal(run("calls.find(c => c.kind === 'text').text"), "RELOAD");
-  assert.equal(run("calls.find(c => c.kind === 'text').y"), 112);
   run(`players.push({ id: 1, active: true, hp: 3, mana: 0, coins: 0, crystals: 0, reloadT: 20 });
     calls.length = 0; drawHud(ctx)`);
-  assert.equal(run("calls.filter(c => c.kind === 'text').map(c => c.text).join(',')"), "P1 RELOAD,P2 RELOAD");
-  run("frame = 16; calls.length = 0; drawHud(ctx)");
   assert.equal(run("calls.some(c => c.kind === 'text')"), false);
 });

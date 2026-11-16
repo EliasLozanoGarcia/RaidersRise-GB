@@ -44,6 +44,7 @@ manteniendo el HUD en la ventana.
 
 Pulsa `P` para pausar. En un mando, Y equivale a SELECT. Se admiten dos
 mandos; el primero controla J1 y el segundo J2.
+Durante la recarga aparece un icono parpadeante sobre el personaje.
 
 El juego arranca con una splash screen con cuatro opciones (Arriba/Abajo y A):
 **Single Player**, **Multiplayer**, **Raiders** (galería de personajes con ficha

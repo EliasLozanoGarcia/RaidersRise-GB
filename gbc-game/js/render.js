@@ -408,16 +408,11 @@ function drawHud(ctx) {
     drawHudTile(ctx, 147, x * 8, top + 8);
     drawHudTile(ctx, 150, x * 8, top + 16);
   }
-  for (const [x, ids] of [[1, [80, 81]], [4, [103, 104]], [12, [119, 120]], [16, [125, 126, 127]]])
+  for (const [x, ids] of [[1, [80, 81]], [4, [103, 104, 105]], [12, [119, 120]], [16, [125, 126, 127]]])
     ids.forEach((id, i) => drawHudTile(ctx, id, (x + i) * 8, top));
 
   const active = players.filter((p) => p.active);
   if (!active.length) return;
-  if ((frame >> 3) & 1) {
-    for (const p of active) if (p.reloadT > 0)
-      drawText(ctx, active.length > 1 ? `P${p.id + 1} RELOAD` : "RELOAD",
-        active.length > 1 ? p.id * 80 + 4 : 4, top - 8);
-  }
   const p = active[Math.floor(frame / 180) % active.length];
   drawGlyph(ctx, PICKUP.heart, 8, top + 8);
   drawHudNumber(ctx, p.hp, 16, top + 8, 8);
@@ -710,6 +705,12 @@ function render() {
   for (const effect of enemyDeathEffects) {
     const offset = (effect.size - 8) >> 1;
     ctx.drawImage(assets.enemyDeathImage, (effect.x >> 8) - cam.x + offset, enemySpriteY(effect) + offset);
+  }
+  if ((frame >> 3) & 1) {
+    for (const p of players) {
+      if (p.active && p.hp > 0 && p.reloadT > 0)
+        ctx.drawImage(assets.reloadImage, (p.x >> 8) - cam.x + 4, (p.y >> 8) - cam.y - 8);
+    }
   }
   ctx.restore();
   drawHud(ctx);

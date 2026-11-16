@@ -59,6 +59,29 @@ function setup() {
   return (code) => vm.runInContext(code, context);
 }
 
+test("el indicador de recarga parpadea sobre cada jugador activo y sigue la camara", () => {
+  const run = setup();
+  run(`
+    assets.reloadImage = { name: "reload" };
+    assets.playerImage = { name: "player" };
+    cam.x = 2; cam.y = 3; frame = 8;
+    players.push(
+      { id: 0, active: true, hp: 3, reloadT: 20, x: 32 << 8, y: 40 << 8, facing: 0, row: 0, ch: { img: "playerImage" } },
+      { id: 1, active: true, hp: 3, reloadT: 10, x: 64 << 8, y: 48 << 8, facing: 0, row: 0, ch: { img: "playerImage" }, inv: 1 },
+      { id: 2, active: false, hp: 3, reloadT: 20 },
+      { id: 3, active: true, hp: 0, reloadT: 20 }
+    );
+    render();
+  `);
+  assert.deepEqual(JSON.parse(run("JSON.stringify(calls.filter(c => c[0] === assets.reloadImage).map(c => c.slice(1)))")),
+    [[34, 29], [66, 37]]);
+  run("frame = 16; calls.length = 0; render()");
+  assert.equal(run("calls.some(c => c[0] === assets.reloadImage)"), false);
+  run("frame = 24; players[0].reloadT = 0; players[1].x += 256; calls.length = 0; render()");
+  assert.deepEqual(JSON.parse(run("JSON.stringify(calls.filter(c => c[0] === assets.reloadImage).map(c => c.slice(1)))")),
+    [[67, 37]]);
+});
+
 test("los enemigos heridos usan sus sprites aclarados y recuperan los originales", () => {
   const run = setup();
   run(`

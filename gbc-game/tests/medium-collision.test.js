@@ -41,6 +41,30 @@ function setup() {
   return (code) => vm.runInContext(code, context);
 }
 
+test("los nuevos tiles solidos bloquean movimiento y balas en ambas capas", () => {
+  const run = setup();
+  for (const id of [84, 85, 86, 116, 117, 118]) {
+    for (const layer of ["itemsLayer", "fondoLayer"]) {
+      run(`itemsLayer[63] = -1; fondoLayer[63] = 49; ${layer}[63] = ${id}`);
+      for (let y = 24; y < 32; y++) for (let x = 24; x < 32; x++) {
+        assert.equal(run(`boxBlocked(${x}, ${y}, BBOX, false)`), true, `${layer} ${id} terrestre`);
+        assert.equal(run(`boxBlocked(${x}, ${y}, BBOX, true)`), true, `${layer} ${id} volador`);
+        assert.equal(run(`bulletBlocked(null, ${x}, ${y})`), true, `${layer} ${id} bala`);
+      }
+    }
+  }
+});
+
+test("el tile 58 bloquea el paso terrestre, pero no a voladores ni balas", () => {
+  const run = setup();
+  for (const layer of ["itemsLayer", "fondoLayer"]) {
+    run(`itemsLayer[63] = -1; fondoLayer[63] = 49; ${layer}[63] = 58`);
+    assert.equal(run("boxBlocked(24, 24, BBOX, false)"), true, layer);
+    assert.equal(run("boxBlocked(24, 24, BBOX, true)"), false, layer);
+    assert.equal(run("bulletBlocked(null, 24, 24)"), false, layer);
+  }
+});
+
 test("todos los IDs medios permiten el paso a abejas y proyectiles", () => {
   const run = setup();
   const ids = run("Array.from(new Set([...COL_MEDIA, ...COL_MEDIA_T, ...COL_MEDIA_R, ...COL_MEDIA_D, ...COL_MEDIA_L]))");

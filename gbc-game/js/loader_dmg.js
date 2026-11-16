@@ -84,7 +84,8 @@ window.DMGLoader = (function () {
         qrImage,
         shotSmallImage,
         shotBigImage,
-        kurtDashImage
+        kurtDashImage,
+        reloadImage
       ] = await Promise.all([
         loadImage("assets/tileset_GBC_Urban.png"),
         loadImage("assets/tileset_GBC_Desert.png"),
@@ -109,7 +110,8 @@ window.DMGLoader = (function () {
         // Sprites de disparo: si faltan, el juego dibuja las balas como cuadrados (no es fatal).
         loadImage("assets/disparo_Small.png").catch(() => null), // Kurt
         loadImage("assets/disparo_Big.png").catch(() => null),   // Kathy
-        loadImage("assets/Kurt-Dash_Sprite.png").catch((err) => { console.warn(err.message); return null; })
+        loadImage("assets/Kurt-Dash_Sprite.png").catch((err) => { console.warn(err.message); return null; }),
+        loadImage("assets/Reload.png")
       ]);
 
       // Carga correlativa de todos los niveles Level0-N y Level1-N que haya en maps/
@@ -183,6 +185,7 @@ window.DMGLoader = (function () {
         shotSmallImage,
         shotBigImage,
         kurtDashImage,
+        reloadImage,
         levels
       };
     }
