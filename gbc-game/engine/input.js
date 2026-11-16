@@ -10,7 +10,7 @@
   const KEYMAP = [
     { // Jugador 1
       KeyW: BTN.UP, KeyS: BTN.DOWN, KeyA: BTN.LEFT, KeyD: BTN.RIGHT,
-      KeyF: BTN.A, KeyG: BTN.B, Enter: BTN.START, Tab: BTN.SELECT,
+      KeyF: BTN.A, KeyG: BTN.B, Enter: BTN.START, KeyR: BTN.SELECT,
     },
     { // Jugador 2
       ArrowUp: BTN.UP, ArrowDown: BTN.DOWN, ArrowLeft: BTN.LEFT, ArrowRight: BTN.RIGHT,
@@ -56,9 +56,9 @@
       if (on(14) || gp.axes[0] < -0.5) m |= BTN.LEFT;
       if (on(15) || gp.axes[0] > 0.5) m |= BTN.RIGHT;
       if (on(0) || on(2) || on(7)) m |= BTN.A;
-      if (on(1) || on(3) || on(6)) m |= BTN.B;
+      if (on(1) || on(6)) m |= BTN.B;
       if (on(9)) m |= BTN.START;
-      if (on(8)) m |= BTN.SELECT;
+      if (on(3)) m |= BTN.SELECT;
       return m;
     }
 

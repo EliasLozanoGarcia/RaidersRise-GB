@@ -7,7 +7,7 @@ scaleControl.addEventListener("change", () => {
   gameScreen.dataset.scale = scaleControl.value;
 });
 
-// Las flechas, Enter y Tab deben seguir funcionando en el selector.
+// Las flechas, Enter y R deben seguir funcionando en el selector.
 for (const event of ["keydown", "keyup"]) {
   scaleControl.addEventListener(event, (e) => e.stopPropagation());
 }

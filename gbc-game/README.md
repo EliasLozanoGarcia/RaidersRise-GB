@@ -23,7 +23,7 @@ la resolución interna sigue siendo 160 × 144.
 |---|---|---|
 | Mover | WASD | Flechas |
 | Disparar | F | `,` |
-| Apuntar / activar especial | Mantener / soltar Tab | Mantener / soltar `/` |
+| Apuntar / activar especial | Mantener / soltar R | Mantener / soltar `/` |
 | Teletransportarse (2 tiles, animado y con enfriamiento) | G | `.` |
 | Unirse | Activo al iniciar | Activo en Multiplayer |
 
@@ -42,7 +42,7 @@ la vibración. Después retoma el seguimiento habitual. El efecto es trasladable
 a Game Boy con scroll del fondo y desplazamiento equivalente de los sprites,
 manteniendo el HUD en la ventana.
 
-Pulsa `P` para pausar. Se admiten dos
+Pulsa `P` para pausar. En un mando, Y equivale a SELECT. Se admiten dos
 mandos; el primero controla J1 y el segundo J2.
 
 El juego arranca con una splash screen con cuatro opciones (Arriba/Abajo y A):
@@ -64,8 +64,8 @@ El fondo repite horizontalmente la primera columna de tiles del mockup.
 - **Skreek**: +25 % vida, más rápido; espada (5 golpes/s, 2 tiles delante);
   especial: proyectil que atraviesa y destruye todo.
 
-Con la barra de especial llena, mantén SELECT para marcar el área o trayectoria
-y suéltalo para activar la habilidad. El marcador y la explosión solo aparecen
+Con la barra de especial llena, mantén R (o Y en un mando) para marcar el área
+o trayectoria y suéltalo para activar la habilidad. El marcador y la explosión solo aparecen
 en celdas sin colisión y en la mitad libre de los tiles de media colisión parcial;
 las mitades bloqueadas, y los tiles de colisión completa, no se marcan. Las
 monedas y los elementos transparentes se recomponen sobre el marcador.
