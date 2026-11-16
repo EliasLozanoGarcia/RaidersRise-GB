@@ -450,21 +450,22 @@ function updatePlayer(p) {
       const tipX = ((p.x >> 8) + tip[0]) * 256 + 128;
       const tipY = ((p.y >> 8) + tip[1]) * 256 + 128;
       const steps = Math.max(1, Math.ceil(Math.max(Math.abs(tipX - startX), Math.abs(tipY - startY)) / 256));
+      const shot = {
+        x: tipX, y: tipY, vx, vy,
+        life: bulletRange() << 8,
+        direct: gun,
+        bulletFrame,
+        mirror,
+        img: gun ? "shotSmallImage" : "shotBigImage"
+      };
       let x = tipX, y = tipY, blocked = false;
       for (let step = 0; step <= steps; step++) {
         x = startX + Math.trunc((tipX - startX) * step / steps);
         y = startY + Math.trunc((tipY - startY) * step / steps);
         if (bulletBlocked(null, x >> 8, (y >> 8) + CFG.bulletGroundOffset)) { blocked = true; break; }
+        hitBulletBarrier(shot, x >> 8, (y >> 8) + CFG.bulletGroundOffset);
       }
-      const shot = {
-        x, y,
-        vx, vy, 
-        life: bulletRange() << 8, 
-        direct: gun, 
-        bulletFrame, 
-        mirror, 
-        img: gun ? "shotSmallImage" : "shotBigImage"
-      };
+      shot.x = x; shot.y = y;
       if (blocked) {
         checkBulletHitItems(x >> 8, (y >> 8) + CFG.bulletGroundOffset);
         shot.linger = CFG.bulletLinger + 1;

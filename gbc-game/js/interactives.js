@@ -560,6 +560,19 @@ function findDropCell(tx, ty) {
   return -1;
 }
 
+function hitBulletBarrier(b, bx, by) {
+  const tx = bx >> 3, ty = by >> 3;
+  if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return;
+  const idx = ty * MAP_W + tx, tile = itemsLayer[idx];
+  if (tile < BARRIER_FIRST || tile > BARRIER_LAST || getTileCollision(tile) !== 1) return;
+  const partner = (tile & 1) ? idx + MAP_W : idx - MAP_W;
+  const key = !(tile & 1) && itemsLayer[partner] === tile - 1 ? partner : idx;
+  if (!b.hitBarriers) b.hitBarriers = new Set();
+  if (b.hitBarriers.has(key)) return;
+  b.hitBarriers.add(key);
+  for (let k = 0; k < (b.beam ? 3 : 1); k++) checkBulletHitItems(bx, by);
+}
+
 function checkBulletHitItems(bx, by) {
   const tx = bx >> 3, ty = by >> 3;
   if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return false;

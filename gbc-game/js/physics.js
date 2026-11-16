@@ -3,7 +3,7 @@
 function getTileCollision(tileId) {
   if (tileId < 0) return 0;
   if (COL_TOTAL.has(tileId) || COL_TOTAL_T.has(tileId) || COL_TOTAL_R.has(tileId) || COL_TOTAL_D.has(tileId) || COL_TOTAL_L.has(tileId)) return 2; // Total
-  if (COL_MEDIA.has(tileId) || COL_MEDIA_T.has(tileId) || COL_MEDIA_R.has(tileId) || COL_MEDIA_D.has(tileId) || COL_MEDIA_L.has(tileId)) return 1; // Media (permite enemigos voladores)
+  if (COL_MEDIA.has(tileId) || COL_MEDIA_T.has(tileId) || COL_MEDIA_R.has(tileId) || COL_MEDIA_D.has(tileId) || COL_MEDIA_L.has(tileId)) return 1; // Media (permite balas y enemigos voladores)
   return 0;
 }
 
@@ -126,7 +126,7 @@ function unstickPlayer(p, snap) {
 }
 
 function bulletBlocked(b, bx, gy) {
-  return boxBlocked(bx, gy, BBOX, false, false);
+  return boxBlocked(bx, gy, BBOX, true, false);
 }
 
 // Comprueba cada pixel para evitar saltar colisiones estrechas o parciales.
@@ -135,7 +135,7 @@ function attackPathClear(x0, y0, x1, y1) {
   for (let i = 1; i <= steps; i++) {
     const x = Math.round(x0 + (x1 - x0) * i / steps);
     const y = Math.round(y0 + (y1 - y0) * i / steps);
-    if (boxBlocked(x, y, BBOX, false, false)) return false;
+    if (boxBlocked(x, y, BBOX, true, false)) return false;
   }
   return true;
 }
@@ -151,7 +151,7 @@ function attackReachesItem(x0, y0, x1, y1) {
   for (let i = 1; i <= steps; i++) {
     const x = Math.round(x0 + (x1 - x0) * i / steps);
     const y = Math.round(y0 + (y1 - y0) * i / steps);
-    if (boxBlocked(x, y, BBOX, false, false)) return (x >> 3) === (x1 >> 3) && (y >> 3) === (y1 >> 3);
+    if (boxBlocked(x, y, BBOX, true, false)) return (x >> 3) === (x1 >> 3) && (y >> 3) === (y1 >> 3);
   }
   return true;
 }

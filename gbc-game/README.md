@@ -78,7 +78,7 @@ proyectil. Los valores y ritmos de daño de los tres personajes no cambian.
 
 Los proyectiles de la bazuca detonan al acercarse a un enemigo y dañan a otros
 dentro del radio de la explosión. La espada, los proyectiles y las explosiones
-de bazuca respetan las colisiones medias y totales, sin dañar al otro lado;
+de bazuca atraviesan las colisiones medias, pero no las totales;
 los proyectiles permanecen inmóviles brevemente al impactar.
 Las abejas atraviesan los tiles de colisión media, pero no los sólidos; los
 personajes y enemigos terrestres no pueden atravesar ninguno de los dos.
@@ -123,7 +123,8 @@ los enemigos existentes; no es obligatorio extraerlos para salir ni modifican
 los precios de la tienda. El límite configurado sigue siendo de uno por defecto;
 los cristales recogibles de las lucky blocks no cambian.
 
-Las antiguas cajas de mana son **lucky blocks**: tras tres impactos sueltan
+Las antiguas cajas de mana son **lucky blocks**: se iluminan al recibir daño
+y tras tres impactos sueltan
 al azar un corazon (+1 vida hasta el maximo), una
 moneda, mana (+10 % de la barra), un cristal, un escudo, una llave o una
 granada. En el primer nivel los premios son equiprobables; en niveles posteriores

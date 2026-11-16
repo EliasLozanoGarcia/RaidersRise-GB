@@ -46,10 +46,7 @@ function makeEnemyHitImages(images) {
       if (px[i + 3]) colors.add((px[i] << 16) | (px[i + 1] << 8) | px[i + 2]);
     }
   }
-  const brightness = (color) => 299 * (color >> 16) + 587 * ((color >> 8) & 255) + 114 * (color & 255);
-  const palette = [...colors].sort((a, b) => brightness(a) - brightness(b));
-  if (palette.length !== 4) throw new Error(`La paleta de enemigos debe tener 4 colores; tiene ${palette.length}`);
-  const lighter = new Map(palette.map((color, i) => [color, palette[Math.min(i + 1, palette.length - 1)]]));
+  const lighter = lighterPalette(colors, "enemigos");
   const result = {};
   for (const { key, canvas, ctx, data } of sheets) {
     const px = data.data;
@@ -64,7 +61,40 @@ function makeEnemyHitImages(images) {
   return result;
 }
 
-function drawMapTile(ctx, tx, ty, tileId, attr, hit = false, dy = 0, dx = 0) {
+function lighterPalette(colors, name) {
+  const brightness = (color) => 299 * (color >> 16) + 587 * ((color >> 8) & 255) + 114 * (color & 255);
+  const palette = [...colors].sort((a, b) => brightness(a) - brightness(b));
+  if (palette.length !== 4) throw new Error(`La paleta de ${name} debe tener 4 colores; tiene ${palette.length}`);
+  return new Map(palette.map((color, i) => [color, palette[Math.min(i + 1, palette.length - 1)]]));
+}
+
+function makeLuckyHitImage(img) {
+  const canvas = document.createElement("canvas");
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0);
+  const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const pixels = data.data, colors = new Set();
+  for (const id of [27, 28, 59, 60]) {
+    const tx = (id % 32) * 8, ty = (id >> 5) * 8;
+    for (let y = ty; y < ty + 8; y++) for (let x = tx; x < tx + 8; x++) {
+      const i = (y * canvas.width + x) * 4;
+      if (pixels[i + 3]) colors.add((pixels[i] << 16) | (pixels[i + 1] << 8) | pixels[i + 2]);
+    }
+  }
+  const lighter = lighterPalette(colors, "lucky blocks");
+  for (let i = 0; i < pixels.length; i += 4) {
+    if (!pixels[i + 3]) continue;
+    const color = lighter.get((pixels[i] << 16) | (pixels[i + 1] << 8) | pixels[i + 2]);
+    if (color === undefined) continue;
+    pixels[i] = color >> 16; pixels[i + 1] = (color >> 8) & 255; pixels[i + 2] = color & 255;
+  }
+  ctx.putImageData(data, 0, 0);
+  return canvas;
+}
+
+function drawMapTile(ctx, tx, ty, tileId, attr, hit = false, dy = 0, dx = 0, hitImage = null) {
   if (tileId < 0) return;
   const screenX = tx * 8 - cam.x + dx;
   const screenY = ty * 8 - cam.y + dy;
@@ -77,12 +107,12 @@ function drawMapTile(ctx, tx, ty, tileId, attr, hit = false, dy = 0, dx = 0) {
   if (flags & 0x40) ctx.scale(1, -1);
   const image = FLOOR_COMPOSITE_TILES.has(tileId) && transparentTilesetImage
     ? (hit && hitImages.transparentTileset ? hitImages.transparentTileset : transparentTilesetImage)
-    : (hit && hitImages.tileset ? hitImages.tileset : assets.tilesetImage);
+    : (hit ? hitImage || hitImages.tileset || assets.tilesetImage : assets.tilesetImage);
   ctx.drawImage(image, sourceX, sourceY, 8, 8, -4, -4, 8, 8);
   ctx.restore();
 }
 
-function drawSpecialTile(ctx, cell, id, attr, hit = false) {
+function drawSpecialTile(ctx, cell, id, attr, hit = false, hitImage = null) {
   const idx = cell.ty * MAP_W + cell.tx;
   const parts = specialFreeParts(cell.tx, cell.ty);
   if (!parts.length) return;
@@ -104,13 +134,13 @@ function drawSpecialTile(ctx, cell, id, attr, hit = false) {
     ctx.closePath();
     ctx.clip();
   }
-  const itemImage = hit && hitImages.tileset ? hitImages.tileset : assets.tilesetImage;
+  const itemImage = hit ? hitImage || hitImages.tileset || assets.tilesetImage : assets.tilesetImage;
   if (!drawSpecialComposite(ctx, idx, id, attr, x, y, itemImage)) {
     drawMapTile(ctx, cell.tx, cell.ty, id, attr);
     if (itemsLayer[idx] >= 0 && !coinWaiting(idx)) {
       for (const [part, flags] of itemTileParts(itemsLayer[idx], itemsAttrs[idx]))
         drawMapTile(ctx, cell.tx, cell.ty, part, flags, hit,
-          tileOffY.get(idx) || 0, tileOffX.get(idx) || 0);
+          tileOffY.get(idx) || 0, tileOffX.get(idx) || 0, hitImage);
     }
   }
   ctx.restore();
@@ -430,7 +460,8 @@ function render() {
       const slot = compSlot.get(idx);
       if (slot !== undefined && !flashed(idx) && !tileOffY.has(idx) && !hasOffX) continue;
       for (const [part, flags] of itemTileParts(itemsLayer[idx], itemsAttrs[idx]))
-        drawMapTile(ctx, tx, ty, part, flags, flashed(idx), tileOffY.get(idx) || 0, hasOffX ? tileOffX.get(idx) : 0);
+        drawMapTile(ctx, tx, ty, part, flags, flashed(idx), tileOffY.get(idx) || 0,
+          hasOffX ? tileOffX.get(idx) : 0, hitCells.has(idx) ? hitImages.luckyTileset : null);
     }
   }
 
@@ -441,14 +472,16 @@ function render() {
     const explosionId = 153 + Math.floor(p.sp.t / CFG.specialExplosionFrameTicks) % 4;
     for (const cell of specialMarkerCells(p.sp)) {
       if (cell.tx >= firstTileX && cell.tx <= lastTileX && cell.ty >= firstTileY && cell.ty <= lastTileY)
-        drawSpecialTile(ctx, cell, aiming ? cell.id : explosionId, aiming ? cell.attr : 0, flashed(cell.ty * MAP_W + cell.tx));
+        drawSpecialTile(ctx, cell, aiming ? cell.id : explosionId, aiming ? cell.attr : 0,
+          flashed(cell.ty * MAP_W + cell.tx), hitCells.has(cell.ty * MAP_W + cell.tx) ? hitImages.luckyTileset : null);
     }
   }
   for (const effect of specialExplosions) {
     const id = 153 + Math.floor(effect.age / CFG.specialExplosionFrameTicks);
     for (const cell of effect.cells) {
       if (cell.tx >= firstTileX && cell.tx <= lastTileX && cell.ty >= firstTileY && cell.ty <= lastTileY && specialFloor(cell.tx, cell.ty))
-        drawSpecialTile(ctx, cell, id, 0, flashed(cell.ty * MAP_W + cell.tx));
+        drawSpecialTile(ctx, cell, id, 0, flashed(cell.ty * MAP_W + cell.tx),
+          hitCells.has(cell.ty * MAP_W + cell.tx) ? hitImages.luckyTileset : null);
     }
   }
 

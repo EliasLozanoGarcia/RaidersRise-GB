@@ -153,6 +153,7 @@ function updateBullets() {
         b.linger = CFG.bulletLinger;
         break;
       }
+      hitBulletBarrier(b, bx, gy);
       if (step === 0) continue;
 
       const pad = b.beam ? 4 : CFG.bulletHitPad;

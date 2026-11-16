@@ -25,6 +25,7 @@ function setup() {
     const sounds = [], itemHits = [];
     function sfx(name) { sounds.push(name); }
     function checkBulletHitItems(x, y) { itemHits.push([x, y]); }
+    function hitBulletBarrier() {}
     function damageEnemy(e, n) { e.hp -= n; }
     let luckyBoxes = [], barrierHit = new Map(), tileOffX = new Map(), tileOffY = new Map();
     let wallShake = 0, screen = "game", shop = null;
@@ -40,6 +41,7 @@ function setup() {
     itemsAttrs = Array(MAP_W * MAP_H).fill(0);
     assets = { tilesetImage: {}, playerImage: {} };
     drawHud = () => {};
+    const actualDrawMapTile = drawMapTile;
     const draws = [];
     drawMapTile = (ctx, tx, ty, id, attr) => draws.push({ tx, ty, id, attr });
   `, context);
@@ -207,7 +209,7 @@ test("el marcador invertido y diagonal sigue la trayectoria real del proyectil",
   }
 });
 
-test("el marcador del proyectil se detiene ante la colision media", () => {
+test("el marcador del proyectil atraviesa la colision media y se detiene ante la total", () => {
   const run = setup();
   run(`
     const p = { id: 0, ch: { ult: "beam" }, x: 16 << 8, y: 32 << 8, facing: 5, mana: 100 };
@@ -217,8 +219,8 @@ test("el marcador del proyectil se detiene ante la colision media", () => {
     updateSpecial(p, BTN.SELECT);
   `);
   assert.equal(run("p.sp.cells.some(c => c.tx === 5 || c.tx === 7)"), false);
-  assert.equal(run("p.sp.cells.at(-1).tx"), 4);
-  assert.equal(run("p.sp.cells.some(c => c.tx >= 5)"), false);
+  assert.equal(run("p.sp.cells.at(-1).tx"), 9);
+  assert.equal(run("p.sp.cells.some(c => c.tx >= 10)"), false);
 });
 
 test("los especiales de suelo atraviesan obstaculos rectos y diagonales", () => {
@@ -270,6 +272,19 @@ test("la explosion de la bazuca no dana ni se dibuja detras de una pared", () =>
   assert.equal(run("Array.from(blasts.keys()).some(idx => idx % MAP_W > 4)"), false);
 });
 
+test("la explosion de la bazuca alcanza enemigos detras de una colision media", () => {
+  const run = setup();
+  run(`
+    CFG.bulletGroundOffset = 6; CFG.blastFrames = 10;
+    const blastRadius = () => 20;
+    for (let y = 0; y < MAP_H; y++) itemsLayer[y * MAP_W + 4] = 8;
+    enemies = [{ x: 42 << 8, y: 34 << 8, box: {x:0,y:0,w:2,h:2}, hp: 10 }];
+    explode(27, 35);
+  `);
+  assert.equal(run("enemies[0].hp"), 9);
+  assert.equal(run("Array.from(blasts.keys()).some(idx => idx % MAP_W > 4)"), true);
+});
+
 test("la espada no golpea enemigos ni objetos detras de un muro", () => {
   const run = setup();
   run(`
@@ -285,11 +300,12 @@ test("la espada no golpea enemigos ni objetos detras de un muro", () => {
   assert.equal(run("enemies[0].hp"), 10);
   assert.equal(run("itemHits.some(([x]) => x >= 40)"), false);
   run(`
-    for (let y = 0; y < MAP_H; y++) itemsLayer[y * MAP_W + 4] = -1;
+    for (let y = 0; y < MAP_H; y++) itemsLayer[y * MAP_W + 4] = 8;
     players[0].cd = 0;
     updatePlayer(players[0]);
   `);
   assert.equal(run("enemies[0].hp"), 9);
+  assert.equal(run("itemHits.some(([x]) => x >= 40)"), true);
 });
 
 test("la boca del arma no genera proyectiles al otro lado de un muro cercano", () => {
@@ -308,6 +324,12 @@ test("la boca del arma no genera proyectiles al otro lado de un muro cercano", (
   assert.equal(run("bullets[0].x >> 8"), 32);
   assert.equal(run("bullets[0].linger"), 5);
   assert.equal(run("itemHits.length"), 1);
+  run(`
+    for (let y = 0; y < MAP_H; y++) itemsLayer[y * MAP_W + 4] = 8;
+    bullets = []; players[0].cd = 0; updatePlayer(players[0]);
+  `);
+  assert.equal(run("bullets[0].x >> 8"), 35);
+  assert.equal(run("bullets[0].linger"), undefined);
 });
 
 test("el marcador diagonal del proyectil no se prolonga detras de un muro", () => {
@@ -322,6 +344,23 @@ test("el marcador diagonal del proyectil no se prolonga detras de un muro", () =
   `);
   assert.equal(run("p.sp.cells.length > 0"), true);
   assert.equal(run("p.sp.cells.some(c => c.tx > 20)"), false);
+});
+
+test("el marcador diagonal del rayo pasa la colision media y se detiene ante la total", () => {
+  const run = setup();
+  run(`
+    MAP_W = 40; MAP_H = 40;
+    fondoLayer = Array(MAP_W * MAP_H).fill(49);
+    itemsLayer = Array(MAP_W * MAP_H).fill(-1);
+    for (let y = 0; y < MAP_H; y++) {
+      itemsLayer[y * MAP_W + 20] = 8;
+      itemsLayer[y * MAP_W + 24] = 0;
+    }
+    const p = { id: 0, ch: { ult: "beam" }, x: 120 << 8, y: 120 << 8, facing: 6, mana: 100 };
+    updateSpecial(p, BTN.SELECT);
+  `);
+  assert.equal(run("p.sp.cells.some(c => c.tx > 20)"), true);
+  assert.equal(run("p.sp.cells.some(c => c.tx >= 24)"), false);
 });
 
 test("el rayo respeta su alcance de 480 pixeles incluso en un mapa abierto", () => {
@@ -397,6 +436,46 @@ test("la explosion no se dibuja si aparece colision media o total durante el efe
     render();
   `);
   assert.equal(run("draws.filter(c => c.id === 153).map(c => c.tx).join(',')"), "4");
+});
+
+test("las cuatro partes de una lucky block herida usan el tileset aclarado y luego recuperan el original", () => {
+  const run = setup();
+  run(`
+    const pixels = new Uint8ClampedArray(256 * 16 * 4);
+    const offset = (y, x) => (y * 256 + x) * 4;
+    pixels.set([75,110,26,255, 36,77,29,255, 9,39,15,255, 122,149,58,255, 9,39,15,0], offset(0, 216));
+    pixels.set([200,0,0,255], offset(0, 0));
+    assets.tilesetImage = { width: 256, height: 16, pixels };
+    document.createElement = () => {
+      const canvas = {};
+      canvas.getContext = () => ({
+        drawImage(image) { canvas.data = new Uint8ClampedArray(image.pixels); },
+        getImageData() { return { data: canvas.data }; },
+        putImageData(image) { canvas.pixels = image.data; }
+      });
+      return canvas;
+    };
+    hitImages.luckyTileset = makeLuckyHitImage(assets.tilesetImage);
+    hitImages.tileset = { name: "normal-hit" };
+    luckyBoxes = [{ tx: 2, ty: 2, alive: true, hit: 6 }];
+    itemsLayer[2 * MAP_W + 2] = 27; itemsLayer[2 * MAP_W + 3] = 28;
+    itemsLayer[3 * MAP_W + 2] = 59; itemsLayer[3 * MAP_W + 3] = 60;
+    itemsLayer[2 * MAP_W + 6] = 19; barrierHit.set(2 * MAP_W + 6, 6);
+    compSlot.set(2 * MAP_W + 2, 0); compCv = { name: "composite" };
+    const images = [];
+    ctx.drawImage = (image) => images.push(image);
+    drawMapTile = actualDrawMapTile;
+    render();
+  `);
+  assert.deepEqual(Array.from(run("hitImages.luckyTileset.pixels.slice(offset(0, 216), offset(0, 216) + 20)")),
+    [122, 149, 58, 255, 75, 110, 26, 255, 36, 77, 29, 255, 122, 149, 58, 255, 9, 39, 15, 0]);
+  assert.deepEqual(Array.from(run("hitImages.luckyTileset.pixels.slice(0, 4)")), [200, 0, 0, 255]);
+  assert.equal(run("images.filter(image => image === hitImages.luckyTileset).length"), 4);
+  assert.equal(run("images.filter(image => image === hitImages.tileset).length"), 1);
+  assert.equal(run("images.includes(compCv)"), false);
+  run("images.length = 0; luckyBoxes[0].hit = 0; render()");
+  assert.equal(run("images.includes(hitImages.luckyTileset)"), false);
+  assert.equal(run("images.includes(compCv)"), true);
 });
 
 test("recorta la mitad bloqueada y recompone el diamante y la moneda sobre el especial", () => {
