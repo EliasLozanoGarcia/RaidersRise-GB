@@ -5,7 +5,7 @@ function newPlayer(i, x, y) {
   const ch = CHARS[chars[i]];
   const p = { id: i, ch, x: x << 8, y: y << 8, facing: 7, hp: 0, coins: 0, crystals: 0, keys: 0, grenades: 0, shield: 0, cd: 0, ammo: 0, reloadT: 0, mana: CFG.specialCharge, sp: null,
              inv: 0, animT: 0, row: 0, active: i === 0, hit: 0, tpCooldown: 0, slash: 0,
-             pushing: false, pushFacing: 7, pushAnimT: 0 };
+             pushing: false, pushFacing: 7, pushAnimT: 0, pushStatic: false };
   p.hp = maxHp(p);
   p.ammo = ammoMax(p);
   return p;
@@ -377,9 +377,15 @@ function updatePlayer(p) {
   }
 
   if (p.pushAnim) {
-    p.pushAnimT++;
-    const hold = p.pushAnim === "up" ? CFG.pushUpFrames : CFG.pushSideFrames;
-    p.row = (p.pushAnim === "up" ? 0 : 2) + (((p.pushAnimT / hold) | 0) % 2);
+    const firstRow = p.pushAnim === "up" ? 0 : 2;
+    if (p.pushStatic) {
+      p.pushAnimT = 0;
+      p.row = firstRow;
+    } else {
+      p.pushAnimT++;
+      const hold = p.pushAnim === "up" ? CFG.pushUpFrames : CFG.pushSideFrames;
+      p.row = firstRow + (((p.pushAnimT / hold) | 0) % 2);
+    }
     if (moving) p.animT++;
   } else if (moving) {
     p.pushAnimT = 0;

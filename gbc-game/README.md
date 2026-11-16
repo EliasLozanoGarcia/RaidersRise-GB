@@ -32,8 +32,8 @@ Para abrir un cofre o una puerta, mantente empujándolo en su dirección durante
 dejas de empujar o te alejas antes de abrirlos, el progreso se reinicia. La
 puerta abierta solo se puede empujar desde la izquierda. Al iniciar el
 desplazamiento de la puerta, el personaje avanza un pixel en la direccion del
-empuje si no hay una colision que lo impida. El personaje muestra la animación
-de empuje al presionar contra cofres o puertas.
+empuje si no hay una colision que lo impida. Al empujar cofres o cristales,
+el personaje mantiene fija la pose de empuje; al empujar puertas, la anima.
 Si hay varios cofres al alcance, cada jugador empuja solo el más cercano.
 
 Al bajar un muro, cada fase dura 0,4 segundos y la zona de juego vibra un pixel horizontalmente;

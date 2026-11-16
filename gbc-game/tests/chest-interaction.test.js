@@ -11,15 +11,17 @@ function setup() {
   vm.runInContext(`
     const MAP_W = 12, MAP_H = 12;
     const PBOX = { x: 4, y: 10, w: 8, h: 6 };
-    const BTN = { UP: 1, DOWN: 2, LEFT: 4, RIGHT: 8 };
-    const input = { held: [BTN.UP, 0] };
+    const BTN = { UP: 1, DOWN: 2, LEFT: 4, RIGHT: 8, A: 16, B: 32, SELECT: 64 };
+    const input = { held: [BTN.UP, 0], pressed: [0, 0] };
+    const CFG = { pushUpFrames: 9, pushSideFrames: 30, runAnimFrames: 4 };
+    const DIAG = 181;
     const DIR_INDEX = [0, 1, 2, 3, 4, 5, 6, 7, 8];
     const itemsLayer = Array(MAP_W * MAP_H).fill(-1);
     const itemsAttrs = Array(MAP_W * MAP_H).fill(0);
     const ALERT_CHEST = 93, ALERT_CRYSTAL = [126, 127];
     let level = 1;
     const players = [
-      { id: 0, x: 34 << 8, y: 39 << 8, active: true, hp: 4, coins: 0 },
+      { id: 0, x: 34 << 8, y: 39 << 8, active: true, hp: 4, coins: 0, crystals: 0, animT: 0 },
       { id: 1, x: 42 << 8, y: 39 << 8, active: false, hp: 4, coins: 0 }
     ];
     const enemies = [];
@@ -31,9 +33,15 @@ function setup() {
     function getCellCollision() { return 0; }
     function spawnCoins() {}
     function sfx() {}
+    function unstickPlayer() {}
+    function tryMove() {}
+    function playerSpeed() { return 256; }
   `, context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", "interactives.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", "entities.js"), "utf8"), context);
   vm.runInContext(`
+    updateSpecial = () => {};
+    collectPickup = () => {};
     coinChests = [
       { tx: 4, ty: 4, pushTime: 0, opened: false },
       { tx: 6, ty: 4, pushTime: 0, opened: false }
@@ -108,4 +116,25 @@ test("un empate elige un solo cofre y respeta los requisitos de empuje", () => {
   assert.equal(run("coinChests[0].pushTime + coinChests[1].pushTime"), 0);
   run("input.held[0] = BTN.UP; players[0].active = false; updateInteractives()");
   assert.equal(run("coinChests[0].pushTime + coinChests[1].pushTime"), 0);
+});
+
+test("al abrir cofres o extraer cristales la pose permanece fija durante toda la interaccion", () => {
+  for (const kind of ["chest", "crystal"]) {
+    const run = setup();
+    if (kind === "crystal") run(`
+      coinChests = [];
+      crystals = [{ tx: 4, ty: 4, pushTime: 0, mined: false }];
+    `);
+    const duration = kind === "chest" ? 90 : 270;
+    for (let i = 0; i < duration; i++) {
+      run("updateInteractives(); updatePlayer(players[0])");
+      assert.equal(run("players[0].pushAnim"), "up", `${kind}, frame ${i}`);
+      assert.equal(run("players[0].row"), 0, `${kind}, frame ${i}`);
+    }
+    assert.equal(run(kind === "chest" ? "coinChests[0].opened" : "crystals[0].mined"), true);
+    assert.equal(run(kind === "chest" ? "players[0].coins" : "players[0].crystals"), kind === "chest" ? 5 : 1);
+    run("input.held[0] = BTN.RIGHT; updateInteractives(); updatePlayer(players[0])");
+    assert.equal(run("players[0].pushAnim"), null);
+    assert.equal(run("players[0].row >= 1 && players[0].row <= 4"), true);
+  }
 });

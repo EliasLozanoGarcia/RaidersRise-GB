@@ -261,6 +261,7 @@ function playerPushing(p, box, upOnly = false, mark = true) {
   if (!mark) return true;
   p.pushing = true;
   p.pushFacing = DIR_INDEX[(dy + 1) * 3 + (dx + 1)];
+  p.pushStatic = false;
   if (upOnly) p.pushAnim = "up";
   else if (dx) p.pushAnim = dx > 0 ? "right" : "left";
   else if (dy < 0) p.pushAnim = "up";
@@ -319,7 +320,7 @@ function updateSpikeTile(spike, idx, tile) {
 
 function updateInteractives() {
   if (wallShake > 0) wallShake--;
-  for (const p of players) { p.pushing = false; p.pushAnim = null; p.pushDoorCells = null; }
+  for (const p of players) { p.pushing = false; p.pushAnim = null; p.pushStatic = false; p.pushDoorCells = null; }
 
   for (const b of luckyBoxes) if (b.hit > 0) b.hit--;
   for (const [k, v] of barrierHit) { if (v <= 1) barrierHit.delete(k); else barrierHit.set(k, v - 1); }
@@ -379,7 +380,10 @@ function updateInteractives() {
     if (c.opened) continue;
     const cBox = { x: c.tx * 8, y: c.ty * 8, w: 16, h: 16 };
     const pusher = chestPushers.get(c);
-    if (pusher) playerPushing(pusher, cBox, true);
+    if (pusher) {
+      playerPushing(pusher, cBox, true);
+      pusher.pushStatic = true;
+    }
     const topCells = [c.ty * MAP_W + c.tx, c.ty * MAP_W + c.tx + 1];
     if (pusher) {
       if (!c.saved) {
@@ -404,6 +408,7 @@ function updateInteractives() {
     const pusher = players.find((p) => playerPushing(p, box, true));
     const topCells = [c.ty * MAP_W + c.tx, c.ty * MAP_W + c.tx + 1];
     if (pusher) {
+      pusher.pushStatic = true;
       if (!c.saved) {
         c.saved = topCells.map((i) => [itemsLayer[i], itemsAttrs[i]]);
         topCells.forEach((i, k) => setItemTile(i, ALERT_CRYSTAL[k], c.saved[k][1]));

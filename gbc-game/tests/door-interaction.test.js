@@ -25,7 +25,7 @@ function setup(open = true) {
         ay + a.y < by + b.y + b.h && ay + a.y + a.h > by + b.y;
     }
   `, context);
-  for (const file of ["tiles.js", "physics.js", "interactives.js"]) {
+  for (const file of ["tiles.js", "physics.js", "interactives.js", "entities.js"]) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8"), context);
   }
   vm.runInContext(`
@@ -99,4 +99,22 @@ test("el desplazamiento no mete al jugador en una colision solida", () => {
   `);
   assert.equal(run("players[0].y >> 8"), 48);
   assert.equal(run("tileOffY.get(125)"), -1);
+});
+
+test("la animacion de empujar puertas sigue alternando sus fotogramas", () => {
+  const run = setup();
+  run(`
+    BTN.A = 16; BTN.B = 32;
+    input.held[0] = BTN.RIGHT; input.pressed = [0, 0];
+    CFG.pushSideFrames = 30; CFG.pushUpFrames = 9;
+    const playerSpeed = () => 256;
+    players[0].animT = 0; players[0].pushAnimT = 0;
+    unstickPlayer = () => false; tryMove = () => false;
+    updateSpecial = () => {}; collectPickup = () => {};
+    for (let i = 0; i < 29; i++) { updateInteractives(); updatePlayer(players[0]); }
+  `);
+  assert.equal(run("players[0].row"), 2);
+  run("updateInteractives(); updatePlayer(players[0])");
+  assert.equal(run("players[0].pushAnim"), "right");
+  assert.equal(run("players[0].row"), 3);
 });
