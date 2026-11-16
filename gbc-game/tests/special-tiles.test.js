@@ -39,14 +39,89 @@ function setup() {
     itemsLayer = Array(MAP_W * MAP_H).fill(-1);
     fondoAttrs = Array(MAP_W * MAP_H).fill(0);
     itemsAttrs = Array(MAP_W * MAP_H).fill(0);
-    assets = { tilesetImage: {}, playerImage: {} };
+    assets = { tilesetImage: {}, pickupTileset: {}, playerImage: {} };
+    assets.biomeTilesets = [assets.tilesetImage];
     drawHud = () => {};
     const actualDrawMapTile = drawMapTile;
     const draws = [];
-    drawMapTile = (ctx, tx, ty, id, attr) => draws.push({ tx, ty, id, attr });
+    drawMapTile = (ctx, tx, ty, id, attr, hit, dy, dx, hitImage, image) =>
+      draws.push({ tx, ty, id, attr, image });
   `, context);
   return (code) => vm.runInContext(code, context);
 }
+
+test("los siete premios usan el atlas propio en los tres biomas, tambien en composites", () => {
+  const run = setup();
+  run(`
+    const urban = {}, desert = {}, snow = {}, hit = {};
+    assets.biomeTilesets = [urban, desert, snow];
+    const copied = [];
+    document.createElement = () => ({
+      getContext: () => ({ drawImage: (...args) => copied.push(args) })
+    });
+    initPickupTiles();
+    hitImages.tileset = hit;
+    hitImages.pickups = {};
+    const drawn = [];
+    drawTileInto = (ctx, id, attr, x, y, image) => drawn.push({ id, image });
+    compCtx = { clearRect() {}, save() {}, beginPath() {}, rect() {}, clip() {}, restore() {} };
+    gbc.mapTile = [Array(300).fill(0)]; gbc.mapAttr = [Array(300).fill(0)];
+    for (let i = 95; i >= 0; i--) compFree.push(i);
+  `);
+  assert.equal(run("copied.length"), 7);
+  assert.equal(run("copied.slice(0,4).every(c => c[0] === urban)"), true);
+  assert.equal(run("copied.slice(4).every(c => c[0] === desert)"), true);
+  assert.equal(run("copied.map(c => (c[2] / 8) * 32 + c[1] / 8).join(',')"), "152,153,154,155,150,151,152");
+  assert.equal(run("copied.map(c => (c[6] / 8) * 32 + c[5] / 8).join(',')"), "152,153,154,155,160,161,162");
+  for (const biome of ["urban", "desert", "snow"]) for (let i = 0; i < 7; i++) {
+    run(`assets.tilesetImage = ${biome}; drawn.length = 0; setItemTile(0, LUCKY_DROPS[${i}])`);
+    assert.equal(run("compSlot.has(0) && drawn.at(-1).image === assets.pickupTileset"), true);
+    assert.equal(run("gbc.mapTile[0][0] === LUCKY_DROPS[" + i + "]"), true);
+    assert.equal(run("getCellCollision(0, 0)"), 0);
+    run(`drawn.length = 0; drawItemInto(compCtx, LUCKY_DROPS[${i}], 0, 0, 0, hitImages.tileset)`);
+    assert.equal(run("drawn.at(-1).image === hitImages.pickups"), true);
+  }
+});
+
+test("los nuevos identificadores mantienen los efectos de los siete premios", () => {
+  const run = setup();
+  run(`
+    CFG.shieldFrames = 300;
+    const maxHp = () => 10;
+    const p = { hp: 1, coins: 0, mana: 0, crystals: 0, shield: 0, keys: 0, grenades: 0 };
+    gbc.mapTile = [Array(300).fill(0)]; gbc.mapAttr = [Array(300).fill(0)];
+    for (const item of LUCKY_DROPS) { itemsLayer[0] = item; collectPickup(p, 0); }
+  `);
+  assert.equal(run("[p.hp,p.coins,p.mana,p.crystals,p.shield,p.keys,p.grenades].join(',')"), "2,1,10,1,300,1,1");
+  assert.equal(run("itemsLayer[0]"), -1);
+});
+
+test("las explosiones usan Urban en cada bioma, tambien bajo premios compuestos", () => {
+  const run = setup();
+  run(`
+    const urban = {}, desert = {}, snow = {};
+    assets.biomeTilesets = [urban, desert, snow];
+    players = [{ id: 0, ch: { ult: "area", img: "playerImage" }, x: 32 << 8, y: 32 << 8,
+      facing: 5, row: 0, mana: 100, active: true, hp: 100, shield: 1 }];
+    updateSpecial(players[0], BTN.SELECT); updateSpecial(players[0], 0);
+  `);
+  for (const biome of ["urban", "desert", "snow"]) {
+    run(`assets.tilesetImage = ${biome}; draws.length = 0; render()`);
+    assert.equal(run("draws.some(d => d.id === 156 && d.image === urban)"), true);
+  }
+  run(`
+    compCtx = {};
+    itemsLayer[0] = PICKUP.key;
+    const compositeDraws = [];
+    drawTileInto = (ctx, id, attr, x, y, image) => compositeDraws.push({ id, image });
+    document.createElement = () => ({
+      getContext: () => ({ clearRect() {}, save() {}, beginPath() {}, rect() {}, clip() {}, restore() {} })
+    });
+    drawSpecialTile(ctx, { tx: 0, ty: 0, id: 124, attr: 0 }, 156, 0, false, null, urban);
+  `);
+  assert.equal(run("compositeDraws[0].id === 156 && compositeDraws[0].image === urban"), true);
+  assert.equal(run("compositeDraws[1].image === assets.pickupTileset"), true);
+});
 
 test("selecciona extremos, bordes y esquinas volteadas para cada forma", () => {
   const run = setup();
@@ -166,7 +241,7 @@ test("la explosion de Kurt y el area activa de Kathy conservan la forma diagonal
     updateSpecial(players[0], BTN.SELECT); updateSpecial(players[0], 0);
     draws.length = 0; render();
   `);
-  assert.equal(run("specialMarkerCells(players[0].sp).every(c => draws.some(d => d.tx === c.tx && d.ty === c.ty && d.id === 153))"), true);
+  assert.equal(run("specialMarkerCells(players[0].sp).every(c => draws.some(d => d.tx === c.tx && d.ty === c.ty && d.id === 156))"), true);
 });
 
 test("Skreek anticipa la trayectoria hasta la pared y dispara al soltar", () => {
@@ -251,7 +326,7 @@ test("los especiales de suelo atraviesan obstaculos rectos y diagonales", () => 
     assert.equal(run("enemyHp"), ult === "area" ? 9 : 7);
     assert.equal(run("q.hp"), ult === "area" ? 9 : 10);
     assert.equal(run("itemHits.filter(([x, y]) => x === target.tx * 8 + 4 && y === target.ty * 8 + 4).length"), 1);
-    assert.equal(run("draws.some(c => c.tx === target.tx && c.ty === target.ty && c.id >= 153 && c.id <= 156)"), true);
+    assert.equal(run("draws.some(c => c.tx === target.tx && c.ty === target.ty && c.id >= 156 && c.id <= 159)"), true);
   }
 });
 
@@ -408,7 +483,7 @@ test("Kathy reproduce la explosion en bucle mientras el area esta activa y respe
   for (let tick = 0; tick < 270; tick++) {
     run("draws.length = 0; render()");
     assert.equal(run("draws.filter(c => c.tx === cell.tx && c.ty === cell.ty).at(-1).id"),
-      153 + Math.floor(tick / 12) % 4);
+      156 + Math.floor(tick / 12) % 4);
     run("updateSpecial(players[0], 0)");
   }
   assert.equal(run("players[0].sp"), null);
@@ -421,7 +496,7 @@ test("renderiza cada fotograma de explosion durante 12 ticks y lo elimina tras 4
   run("specialExplosions.push({cells:[{tx:2,ty:2}], age:0})");
   for (let tick = 0; tick < 48; tick++) {
     run("draws.length = 0; render()");
-    assert.equal(run("draws.at(-1).id"), 153 + Math.floor(tick / 12));
+    assert.equal(run("draws.at(-1).id"), 156 + Math.floor(tick / 12));
     run("updateSpecialExplosions()");
   }
   assert.equal(run("specialExplosions.length"), 0);
@@ -435,7 +510,7 @@ test("la explosion no se dibuja si aparece colision media o total durante el efe
     itemsLayer[2 * MAP_W + 3] = 0;
     render();
   `);
-  assert.equal(run("draws.filter(c => c.id === 153).map(c => c.tx).join(',')"), "4");
+  assert.equal(run("draws.filter(c => c.id === 156).map(c => c.tx).join(',')"), "4");
 });
 
 test("las cuatro partes de una lucky block herida usan el tileset aclarado y luego recuperan el original", () => {
@@ -498,13 +573,13 @@ test("recorta la mitad bloqueada y recompone el diamante y la moneda sobre el es
   assert.equal(run("calls.join(',')"), "88:64:0,30:32:0,composite");
   run(`
     calls.length = 0; clips.length = 0;
-    itemsLayer[2 * MAP_W + 2] = 147;
+    itemsLayer[2 * MAP_W + 2] = PICKUP.coin;
     coinAnim.set(2 * MAP_W + 2, {fall:true,t:1});
-    drawSpecialTile(ctx, {tx:2,ty:2}, 153, 0);
+    drawSpecialTile(ctx, {tx:2,ty:2}, 156, 0);
   `);
-  assert.equal(run("calls.join(',')"), "153:0:0,147:32:-1,composite");
-  run("calls.length = 0; coinAnim.get(2 * MAP_W + 2).fall = false; drawSpecialTile(ctx, {tx:2,ty:2}, 154, 0)");
-  assert.equal(run("calls.join(',')"), "154:0:0,composite");
+  assert.equal(run("calls.join(',')"), "156:0:0,153:32:-1,composite");
+  run("calls.length = 0; coinAnim.get(2 * MAP_W + 2).fall = false; drawSpecialTile(ctx, {tx:2,ty:2}, 157, 0)");
+  assert.equal(run("calls.join(',')"), "157:0:0,composite");
 });
 
 test("compone los tiles solicitados sobre el suelo 49 y sobre los especiales", () => {
@@ -522,10 +597,10 @@ test("compone los tiles solicitados sobre el suelo 49 y sobre los especiales", (
     setComposite(42, 0);
   `);
   assert.equal(run("calls.join(',')"), "49:0,64:32");
-  run("calls.length = 0; drawSpecialComposite(ctx, 42, 153, 64, 0, 0)");
-  assert.equal(run("calls.join(',')"), "153:64,64:32");
-  run("calls.length = 0; fondoLayer[42] = 69; drawSpecialComposite(ctx, 42, 153, 0, 0, 0)");
-  assert.equal(run("calls.join(',')"), "153:0,64:32");
+  run("calls.length = 0; drawSpecialComposite(ctx, 42, 156, 64, 0, 0)");
+  assert.equal(run("calls.join(',')"), "156:64,64:32");
+  run("calls.length = 0; fondoLayer[42] = 69; drawSpecialComposite(ctx, 42, 156, 0, 0, 0)");
+  assert.equal(run("calls.join(',')"), "156:0,64:32");
   run("calls.length = 0; fondoLayer[42] = 69; fondoAttrs[42] = 64; itemsLayer[42] = -1; setComposite(42, 0)");
   assert.equal(run("calls.join(',')"), "49:0,69:64");
   run("calls.length = 0; drawSpecialComposite(ctx, 42, 90, 32, 0, 0)");
@@ -574,20 +649,20 @@ test("las alertas componen cofre o cristal y el 93 volteado sobre el fondo", () 
   assert.equal(run("calls.join(',')"), "49:0,29:0,93:0");
   run("calls.length = 0; itemsLayer[42] = 126; itemsAttrs[42] = 64; setComposite(42, 0)");
   assert.equal(run("calls.join(',')"), "49:0,30:64,93:32");
-  run("calls.length = 0; itemsLayer[42] = 127; itemsAttrs[42] = 0; drawSpecialComposite(ctx, 42, 154, 0, 0, 0)");
-  assert.equal(run("calls.join(',')"), "154:0,31:0,93:0");
+  run("calls.length = 0; itemsLayer[42] = 127; itemsAttrs[42] = 0; drawSpecialComposite(ctx, 42, 157, 0, 0, 0)");
+  assert.equal(run("calls.join(',')"), "157:0,31:0,93:0");
 });
 
 test("dibuja el marcador sobre items sin modificar las capas y lo sustituye por la explosion", () => {
   const run = setup();
   run(`
-    itemsLayer[2 * MAP_W + 2] = 147;
+    itemsLayer[2 * MAP_W + 2] = PICKUP.coin;
     players = [{ active: true, hp: 10, x: 0, y: 0, ch: { img: "playerImage" },
       facing: 0, row: 0, sp: { state: "aim", tx: 2, ty: 2, w: 1, h: 1 } }];
     render();
   `);
-  assert.equal(run("draws.filter(c => c.tx === 2 && c.ty === 2).map(c => c.id).join(',')"), "49,147,90,147");
+  assert.equal(run("draws.filter(c => c.tx === 2 && c.ty === 2).map(c => c.id).join(',')"), "49,153,90,153");
   run("draws.length = 0; specialExplosions.push({cells:specialMarkerCells(players[0].sp),age:0}); players[0].sp.state = 'active'; players[0].sp.instant = true; render()");
-  assert.equal(run("draws.filter(c => c.tx === 2 && c.ty === 2).map(c => c.id).join(',')"), "49,147,153,147");
-  assert.equal(run("itemsLayer[2 * MAP_W + 2]"), 147);
+  assert.equal(run("draws.filter(c => c.tx === 2 && c.ty === 2).map(c => c.id).join(',')"), "49,153,156,153");
+  assert.equal(run("itemsLayer[2 * MAP_W + 2]"), 153);
 });

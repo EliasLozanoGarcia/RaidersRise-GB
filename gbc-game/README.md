@@ -72,7 +72,7 @@ monedas y los elementos transparentes se recomponen sobre el marcador.
 Las áreas diagonales se giran y usan el tile diagonal volteado en sus bordes;
 los especiales de suelo de Kathy y Kurt atraviesan obstáculos y dañan dentro
 de toda el área, también al otro lado. Kathy repite los cuatro tiles de
-explosión (154–157 en Tiled), 0,2 segundos cada uno, mientras su área está
+explosión (157–160 en Tiled), 0,2 segundos cada uno, mientras su área está
 activa; Kurt los reproduce una vez. Skreek no muestra explosión al lanzar su
 proyectil. Los valores y ritmos de daño de los tres personajes no cambian.
 
@@ -132,17 +132,22 @@ la probabilidad de moneda se reduce con el mismo factor que la de los enemigos,
 redistribuyendo el resto entre los premios que no son monedas ni mana, para
 mantener la probabilidad de mana. El escudo protege de enemigos, pinchos y especiales durante 5 segundos;
 recoger otro reinicia su duracion. Las llaves y granadas se acumulan pero aun no
-tienen efecto. Cada jugador tiene su propio inventario, visible en el HUD;
-monedas, cristales, llaves y granadas se conservan al avanzar de nivel.
-Los numeros de Tiled 147-153 corresponden a los IDs internos 146-152.
+tienen efecto. Cada jugador tiene su propio inventario; el HUD muestra vida,
+mana, monedas y cristales. En multijugador alterna cada tres segundos entre
+jugadores y muestra el número del jugador. Escudo, llaves y granadas no se
+muestran en el HUD. Monedas, cristales, llaves y granadas se conservan al
+avanzar de nivel. Los iconos de vida, moneda, mana y cristal corresponden a
+los numeros de Tiled 153–156 (IDs internos 152–155).
 
 ## Archivos activos
 
 - `index.html` carga el motor, los controles, `js/loader_dmg.js` y `js/game.js`.
 - `engine/gbc.js` conserva el motor de colisiones y el renderizador retro anterior.
 - Los tilesets Urban, Desert y Snow, `assets/Kathy_Sprites.png` y
-  `assets/Teleport_GBC.png` son copias directas de los PNG de `ART/`; se dibujan
-  sin reducir ni cambiar sus colores. Los enemigos se dibujan desde
+  `assets/Teleport_GBC.png` se dibujan sin reducir sus colores. El HUD y los
+  nuevos iconos y explosiones utilizan el tileset Urban en todos los biomas;
+  el escudo, la llave y la granada conservan los iconos anteriores de Desert.
+  Los enemigos se dibujan desde
   `assets/enemies_run.png`.
 - `maps/Leveltest._Fondo.csv` y `maps/Leveltest._Items.csv` son las capas del
   mapa exportadas desde Tiled.
@@ -157,7 +162,7 @@ Los numeros de Tiled 147-153 corresponden a los IDs internos 146-152.
 - Los textos usan `assets/font_8x8.png` (ancho proporcional): se componen en un
   buffer propio de 32 tiles sueltos (ids 74-92 y 106-118) y se pintan como tiles.
 - Tiles compuestos: los items con transparencia (detectados por alfa en el tileset),
-  las monedas (147, ID interno) y las alertas (93 cofre, 126/127 cristal) se dibujan como un tile
+  los premios y las alertas (93 cofre, 126/127 cristal) se dibujan como un tile
   buffer (suelo + item) de un pool de 96 huecos (ids 160-255, filas 6-8), que se libera al desaparecer el item.
   Los tiles 64-67 y 69-72 usan el color del suelo 49 como transparencia; si estan en la capa de fondo,
   o de items, se componen sobre el suelo 49. Los especiales sustituyen el suelo y conservan el objeto encima.

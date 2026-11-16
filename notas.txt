@@ -1,5 +1,11 @@
-Mejorar dash de Kurt, los sprites.
+Errores:
 
+las balas no deberian atravesar las colisiones, deberian quedarse inmediatamente encima antes de desaparacer, sin dañar a lo que hay al otro lado.
+
+
+
+
+Mejorar dash de Kurt, los sprites.
 Hacer sprites de Atabusk
 
 Kathy al disparar ha de ir mas lenta, por el retroceso de 1 pixel.
@@ -16,10 +22,8 @@ Mejorar menus:
 -Result Screen
 -Tienda co ncartas o iconos
 
-Diseño:
--Resolver las abilidades, lo del select no funciona bien, probar: 
- 1.usar el select para cambiar entre dash y ultimate.
- 2.doble tap en la direccion para hacer el dash (las diagoneles son complicadas) y la B para la Ultimate.
+
+
 
 -Pasivas
  1.Granada se lanza cada X tiempo.

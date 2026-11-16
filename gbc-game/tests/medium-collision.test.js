@@ -201,7 +201,7 @@ test("la lucky block reinicia el destello con cada golpe y desaparece al rompers
   assert.equal(run("luckyBoxes[0].hit"), 0);
   run("checkBulletHitItems(25, 33)");
   assert.equal(run("luckyBoxes[0].alive"), false);
-  assert.equal(run("itemsLayer[3 * MAP_W + 3]"), 146);
+  assert.equal(run("itemsLayer[3 * MAP_W + 3]"), 152);
 });
 
 test("el rayo atraviesa tiles medios", () => {

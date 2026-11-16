@@ -55,7 +55,7 @@ function setup() {
   for (const file of ["render.js", "entities.js", "main.js"]) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8"), context);
   }
-  vm.runInContext("initEnemyFrameBottoms()", context);
+  vm.runInContext("drawHud = () => {}; initEnemyFrameBottoms()", context);
   return (code) => vm.runInContext(code, context);
 }
 

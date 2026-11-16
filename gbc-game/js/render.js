@@ -94,7 +94,7 @@ function makeLuckyHitImage(img) {
   return canvas;
 }
 
-function drawMapTile(ctx, tx, ty, tileId, attr, hit = false, dy = 0, dx = 0, hitImage = null) {
+function drawMapTile(ctx, tx, ty, tileId, attr, hit = false, dy = 0, dx = 0, hitImage = null, normalImage = null) {
   if (tileId < 0) return;
   const screenX = tx * 8 - cam.x + dx;
   const screenY = ty * 8 - cam.y + dy;
@@ -107,12 +107,12 @@ function drawMapTile(ctx, tx, ty, tileId, attr, hit = false, dy = 0, dx = 0, hit
   if (flags & 0x40) ctx.scale(1, -1);
   const image = FLOOR_COMPOSITE_TILES.has(tileId) && transparentTilesetImage
     ? (hit && hitImages.transparentTileset ? hitImages.transparentTileset : transparentTilesetImage)
-    : (hit ? hitImage || hitImages.tileset || assets.tilesetImage : assets.tilesetImage);
+    : (hit ? hitImage || hitImages.tileset || normalImage || assets.tilesetImage : normalImage || assets.tilesetImage);
   ctx.drawImage(image, sourceX, sourceY, 8, 8, -4, -4, 8, 8);
   ctx.restore();
 }
 
-function drawSpecialTile(ctx, cell, id, attr, hit = false, hitImage = null) {
+function drawSpecialTile(ctx, cell, id, attr, hit = false, hitImage = null, floorImage = assets.tilesetImage) {
   const idx = cell.ty * MAP_W + cell.tx;
   const parts = specialFreeParts(cell.tx, cell.ty);
   if (!parts.length) return;
@@ -135,19 +135,21 @@ function drawSpecialTile(ctx, cell, id, attr, hit = false, hitImage = null) {
     ctx.clip();
   }
   const itemImage = hit ? hitImage || hitImages.tileset || assets.tilesetImage : assets.tilesetImage;
-  if (!drawSpecialComposite(ctx, idx, id, attr, x, y, itemImage)) {
-    drawMapTile(ctx, cell.tx, cell.ty, id, attr);
+  if (!drawSpecialComposite(ctx, idx, id, attr, x, y, itemImage, floorImage)) {
+    drawMapTile(ctx, cell.tx, cell.ty, id, attr, false, 0, 0, null, floorImage);
     if (itemsLayer[idx] >= 0 && !coinWaiting(idx)) {
       for (const [part, flags] of itemTileParts(itemsLayer[idx], itemsAttrs[idx]))
         drawMapTile(ctx, cell.tx, cell.ty, part, flags, hit,
-          tileOffY.get(idx) || 0, tileOffX.get(idx) || 0, hitImage);
+          tileOffY.get(idx) || 0, tileOffX.get(idx) || 0,
+          LUCKY_DROPS.includes(itemsLayer[idx]) ? hitImages.pickups : hitImage,
+          LUCKY_DROPS.includes(itemsLayer[idx]) ? assets.pickupTileset : null);
     }
   }
   ctx.restore();
 }
 
 // ------------------------------------------------------------ HUD (3 tiles de alto, parte inferior)
-const GLYPH_COIN = PICKUP.coin, GLYPH_HEART = PICKUP.heart, GLYPH_DIGIT0 = 127; // digitos: 128-136 = 1-9, 137 = 0
+const GLYPH_COIN = PICKUP.coin, GLYPH_DIGIT0 = 127; // digitos: 128-136 = 1-9, 137 = 0
 
 // Texto: los glifos de la fuente 8x8 (ancho proporcional) se componen en 32 tiles libres del tileset
 // (ids 74-92 y 106-118, transparentes en el PNG) y despues se pintan como tiles.
@@ -305,23 +307,85 @@ function drawGameOver(ctx) {
 
 function drawGlyph(ctx, id, x, y) {
   if (TEXT_SLOT.has(id)) ctx.drawImage(assets.textBuffer, TEXT_SLOT.get(id) * 8, 0, 8, 8, x, y, 8, 8);
-  else ctx.drawImage(assets.tilesetImage, (id % 32) * 8, ((id / 32) | 0) * 8, 8, 8, x, y, 8, 8);
-}
-
-function drawNumber(ctx, value, x, y) {
-  for (const ch of String(value)) {
-    const d = Number(ch);
-    drawGlyph(ctx, GLYPH_DIGIT0 + (d === 0 ? 10 : d), x, y);
-    x += 8;
+  else {
+    const pickup = id === PICKUP.heart || id === PICKUP.coin || id === PICKUP.mana || id === PICKUP.crystal;
+    ctx.drawImage(pickup ? assets.pickupTileset : assets.tilesetImage,
+      (id % 32) * 8, ((id / 32) | 0) * 8, 8, 8, x, y, 8, 8);
   }
 }
 
-function drawHudNumber(ctx, value, x, y, width) {
-  const scale = Math.min(1, width / (String(value).length * 8));
+let hudBarHalf, hudBarFull, hudBarEndHalf, hudBarLoopHalf, hudBarLoopFull, hudTop;
+
+function initHud() {
+  const atlas = assets.biomeTilesets[0];
+  const sample = document.createElement("canvas");
+  sample.width = sample.height = 8;
+  const sampleCtx = sample.getContext("2d");
+  sampleCtx.drawImage(atlas, (139 % 32) * 8, (139 >> 5) * 8, 8, 8, 0, 0, 8, 8);
+  const pixels = sampleCtx.getImageData(0, 0, 8, 8).data;
+  const colors = new Set();
+  for (let i = 0; i < pixels.length; i += 4) {
+    if (pixels[i + 3]) colors.add((pixels[i] << 16) | (pixels[i + 1] << 8) | pixels[i + 2]);
+  }
+  const brightness = (color) => 299 * (color >> 16) + 587 * ((color >> 8) & 255) + 114 * (color & 255);
+  const palette = [...colors].sort((a, b) => brightness(b) - brightness(a));
+  if (palette.length !== 4) throw new Error(`La barra de mana debe tener 4 colores; tiene ${palette.length}`);
+  const variant = (source, replacements) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 8;
+    const c = canvas.getContext("2d");
+    c.drawImage(source, 0, 0);
+    const data = c.getImageData(0, 0, 8, 8), px = data.data;
+    for (let i = 0; i < px.length; i += 4) {
+      if (!px[i + 3]) continue;
+      const color = (px[i] << 16) | (px[i + 1] << 8) | px[i + 2];
+      if (!replacements.has(color)) continue;
+      const next = replacements.get(color);
+      px[i] = next >> 16; px[i + 1] = (next >> 8) & 255; px[i + 2] = next & 255;
+    }
+    c.putImageData(data, 0, 0);
+    return canvas;
+  };
+  const half = new Map([[palette[1], palette[2]]]);
+  const full = new Map([[palette[1], palette[0]]]);
+  hudBarHalf = variant(sample, half);
+  hudBarFull = variant(sample, full);
+  hudBarEndHalf = variant(sample, new Map([[palette[0], palette[2]], [palette[1], palette[0]]]));
+  const loop = document.createElement("canvas");
+  loop.width = loop.height = 8;
+  loop.getContext("2d").drawImage(atlas, (141 % 32) * 8, (141 >> 5) * 8, 8, 8, 0, 0, 8, 8);
+  hudBarLoopHalf = variant(loop, half);
+  hudBarLoopFull = variant(loop, full);
+  hudTop = document.createElement("canvas");
+  hudTop.width = hudTop.height = 8;
+  const topCtx = hudTop.getContext("2d");
+  for (let x = 0; x < 8; x++)
+    topCtx.drawImage(atlas, (142 % 32) * 8 + 7, (142 >> 5) * 8, 1, 8, x, 0, 1, 8);
+}
+
+function drawHudImage(ctx, image, sx, sy, x, y, attr = 0) {
+  if (!attr) { ctx.drawImage(image, sx, sy, 8, 8, x, y, 8, 8); return; }
   ctx.save();
-  ctx.translate(x, y);
+  ctx.translate(x + 4, y + 4);
+  ctx.scale(attr & 0x20 ? -1 : 1, attr & 0x40 ? -1 : 1);
+  ctx.drawImage(image, sx, sy, 8, 8, -4, -4, 8, 8);
+  ctx.restore();
+}
+
+function drawHudTile(ctx, id, x, y, attr = 0) {
+  drawHudImage(ctx, assets.biomeTilesets[0], (id % 32) * 8, (id >> 5) * 8, x, y, attr);
+}
+
+function drawHudNumber(ctx, value, x, y, width) {
+  const text = String(value);
+  const scale = Math.min(1, width / (text.length * 8));
+  ctx.save();
+  ctx.translate(x + width - text.length * 8 * scale, y);
   ctx.scale(scale, 1);
-  drawNumber(ctx, value, 0, 0);
+  for (let i = 0; i < text.length; i++) {
+    const d = Number(text[i]);
+    drawHudTile(ctx, GLYPH_DIGIT0 + (d === 0 ? 10 : d), i * 8, 0);
+  }
   ctx.restore();
 }
 
@@ -329,29 +393,50 @@ function drawHud(ctx) {
   const top = VIEW_H;
   ctx.fillStyle = "#0f380f";
   ctx.fillRect(0, top, GBC_W, HUD_H);
-  for (const p of players) {
-    if (!p.active) continue;
-    const x0 = p.id * 80;
-    for (let h = 0; h < Math.min(p.hp, 7); h++) drawGlyph(ctx, GLYPH_HEART, x0 + h * 8, top);
-    drawGlyph(ctx, PICKUP.shield, x0 + 56, top);
-    drawHudNumber(ctx, Math.ceil(p.shield / 60), x0 + 64, top, 16);
-    drawGlyph(ctx, PICKUP.mana, x0, top + 8);
-    const full = p.mana >= CFG.specialCharge;
-    ctx.fillStyle = "#55742a";
-    ctx.fillRect(x0 + 8, top + 10, 24, 4);
-    ctx.fillStyle = "#0f380f";
-    ctx.fillRect(x0 + 9, top + 11, 22, 2);
-    ctx.fillStyle = full && ((frame >> 3) & 1) ? "#7a953a" : "#55742a";
-    ctx.fillRect(x0 + 9, top + 11, Math.floor(22 * p.mana / CFG.specialCharge), 2);
-    drawGlyph(ctx, PICKUP.coin, x0 + 32, top + 8);
-    drawHudNumber(ctx, p.coins, x0 + 40, top + 8, 12);
-    drawGlyph(ctx, PICKUP.crystal, x0 + 52, top + 8);
-    drawHudNumber(ctx, p.crystals, x0 + 60, top + 8, 20);
-    drawGlyph(ctx, PICKUP.key, x0, top + 16);
-    drawHudNumber(ctx, p.keys, x0 + 8, top + 16, 16);
-    drawGlyph(ctx, PICKUP.grenade, x0 + 24, top + 16);
-    drawHudNumber(ctx, p.grenades, x0 + 32, top + 16, 16);
-    if (p.reloadT > 0 && ((frame >> 3) & 1)) drawText(ctx, "RELOAD", x0 + 48, top + 16);
+  for (let x = 1; x < 19; x++) {
+    drawHudImage(ctx, hudTop, 0, 0, x * 8, top);
+    drawHudTile(ctx, 149, x * 8, top + 16);
+  }
+  drawHudTile(ctx, 142, 0, top);
+  drawHudTile(ctx, 142, 152, top, 0x20);
+  drawHudTile(ctx, 145, 0, top + 8);
+  drawHudTile(ctx, 145, 152, top + 8, 0x20);
+  drawHudTile(ctx, 148, 0, top + 16);
+  drawHudTile(ctx, 148, 152, top + 16, 0x20);
+  for (const x of [3, 11]) {
+    drawHudTile(ctx, 144, x * 8, top);
+    drawHudTile(ctx, 147, x * 8, top + 8);
+    drawHudTile(ctx, 150, x * 8, top + 16);
+  }
+  for (const [x, ids] of [[1, [80, 81]], [4, [103, 104]], [12, [119, 120]], [16, [125, 126, 127]]])
+    ids.forEach((id, i) => drawHudTile(ctx, id, (x + i) * 8, top));
+
+  const active = players.filter((p) => p.active);
+  if (!active.length) return;
+  if ((frame >> 3) & 1) {
+    for (const p of active) if (p.reloadT > 0)
+      drawText(ctx, active.length > 1 ? `P${p.id + 1} RELOAD` : "RELOAD",
+        active.length > 1 ? p.id * 80 + 4 : 4, top - 8);
+  }
+  const p = active[Math.floor(frame / 180) % active.length];
+  drawGlyph(ctx, PICKUP.heart, 8, top + 8);
+  drawHudNumber(ctx, p.hp, 16, top + 8, 8);
+  drawGlyph(ctx, PICKUP.mana, 32, top + 8);
+  drawHudNumber(ctx, p.coins, 96, top + 8, 16);
+  drawGlyph(ctx, PICKUP.coin, 112, top + 8);
+  drawHudNumber(ctx, p.crystals, 128, top + 8, 16);
+  drawGlyph(ctx, PICKUP.crystal, 144, top + 8);
+  if (active.length > 1) drawHudNumber(ctx, p.id + 1, 120, top + 8, 8);
+
+  const halves = Math.floor(Math.max(0, Math.min(CFG.specialCharge, p.mana)) * 12 / CFG.specialCharge);
+  for (let i = 0; i < 6; i++) {
+    const fill = Math.max(0, Math.min(2, halves - i * 2));
+    const x = (5 + i) * 8, end = i === 5;
+    if (!fill) drawHudTile(ctx, i === 0 || end ? 138 : 140, x, top + 8, end ? 0x60 : 0);
+    else drawHudImage(ctx, i === 0 || end
+      ? (fill === 2 ? hudBarFull : end ? hudBarEndHalf : hudBarHalf)
+      : (fill === 2 ? hudBarLoopFull : hudBarLoopHalf),
+      0, 0, x, top + 8, end ? 0x60 : 0);
   }
 }
 
@@ -461,7 +546,9 @@ function render() {
       if (slot !== undefined && !flashed(idx) && !tileOffY.has(idx) && !hasOffX) continue;
       for (const [part, flags] of itemTileParts(itemsLayer[idx], itemsAttrs[idx]))
         drawMapTile(ctx, tx, ty, part, flags, flashed(idx), tileOffY.get(idx) || 0,
-          hasOffX ? tileOffX.get(idx) : 0, hitCells.has(idx) ? hitImages.luckyTileset : null);
+          hasOffX ? tileOffX.get(idx) : 0,
+          LUCKY_DROPS.includes(itemsLayer[idx]) ? hitImages.pickups : hitCells.has(idx) ? hitImages.luckyTileset : null,
+          LUCKY_DROPS.includes(itemsLayer[idx]) ? assets.pickupTileset : null);
     }
   }
 
@@ -469,19 +556,20 @@ function render() {
     if (!p.active || p.hp <= 0 || !p.sp) continue;
     const aiming = p.sp.state === "aim";
     if (!aiming && (p.sp.state !== "active" || p.sp.instant)) continue;
-    const explosionId = 153 + Math.floor(p.sp.t / CFG.specialExplosionFrameTicks) % 4;
+    const explosionId = 156 + Math.floor(p.sp.t / CFG.specialExplosionFrameTicks) % 4;
     for (const cell of specialMarkerCells(p.sp)) {
       if (cell.tx >= firstTileX && cell.tx <= lastTileX && cell.ty >= firstTileY && cell.ty <= lastTileY)
         drawSpecialTile(ctx, cell, aiming ? cell.id : explosionId, aiming ? cell.attr : 0,
-          flashed(cell.ty * MAP_W + cell.tx), hitCells.has(cell.ty * MAP_W + cell.tx) ? hitImages.luckyTileset : null);
+          flashed(cell.ty * MAP_W + cell.tx), hitCells.has(cell.ty * MAP_W + cell.tx) ? hitImages.luckyTileset : null,
+          aiming ? assets.tilesetImage : assets.biomeTilesets[0]);
     }
   }
   for (const effect of specialExplosions) {
-    const id = 153 + Math.floor(effect.age / CFG.specialExplosionFrameTicks);
+    const id = 156 + Math.floor(effect.age / CFG.specialExplosionFrameTicks);
     for (const cell of effect.cells) {
       if (cell.tx >= firstTileX && cell.tx <= lastTileX && cell.ty >= firstTileY && cell.ty <= lastTileY && specialFloor(cell.tx, cell.ty))
         drawSpecialTile(ctx, cell, id, 0, flashed(cell.ty * MAP_W + cell.tx),
-          hitCells.has(cell.ty * MAP_W + cell.tx) ? hitImages.luckyTileset : null);
+          hitCells.has(cell.ty * MAP_W + cell.tx) ? hitImages.luckyTileset : null, assets.biomeTilesets[0]);
     }
   }
 
