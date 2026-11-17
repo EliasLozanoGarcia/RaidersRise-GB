@@ -336,7 +336,7 @@ function updateInteractives() {
     } else if (s.state === 1) {
       const sBox = { x: s.tx * 8, y: s.ty * 8, w: 8, h: 8 };
       for (const p of players) {
-        if (p.active && p.hp > 0 && !p.tp && p.inv === 0 && p.shield === 0 &&
+        if (p.active && p.hp > 0 && !p.tp && !p.dash && p.inv === 0 && p.shield === 0 &&
             overlap(p.x >> 8, p.y >> 8, PBOX, 0, 0, sBox)) {
           p.hp--;
           sfx("hurt");
@@ -624,9 +624,10 @@ function checkBulletHitItems(bx, by) {
         }
         const drop = findDropCell(b.tx, b.ty);
         if (drop >= 0) {
-          let prize = LUCKY_DROPS[rnd(LUCKY_DROPS.length)];
+          const prizes = LUCKY_DROPS.filter((item) => item !== PICKUP.grenade);
+          let prize = prizes[rnd(prizes.length)];
           if (prize === PICKUP.coin && rnd(10) >= coinChanceTenths()) {
-            const others = LUCKY_DROPS.filter((item) => item !== PICKUP.coin && item !== PICKUP.mana);
+            const others = prizes.filter((item) => item !== PICKUP.coin && item !== PICKUP.mana);
             prize = others[rnd(others.length)];
           }
           setItemTile(drop, prize);

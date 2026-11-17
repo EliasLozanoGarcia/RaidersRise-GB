@@ -96,6 +96,31 @@ test("los nuevos identificadores mantienen los efectos de los siete premios", ()
   assert.equal(run("itemsLayer[0]"), -1);
 });
 
+test("el dash recoge monedas y objetos por el recorrido y respeta las monedas pendientes", () => {
+  const run = setup();
+  run(`
+    BTN.UP = 1; BTN.DOWN = 2; BTN.LEFT = 4; BTN.RIGHT = 8; BTN.A = 16; BTN.B = 32;
+    input.held = [0]; input.pressed = [BTN.B];
+    CFG.teleportCooldown = 40; CFG.shieldFrames = 300;
+    const maxHp = () => 10;
+    setItemTile = (idx, tile) => { itemsLayer[idx] = tile; };
+    const p = { id: 0, ch: { dash: true }, x: 32 << 8, y: 20 << 8, facing: 5,
+      active: true, hp: 5, coins: 0, keys: 0, shield: 0, tpCooldown: 0, inv: 0 };
+    itemsLayer[4 * MAP_W + 5] = PICKUP.coin;
+    itemsLayer[4 * MAP_W + 6] = PICKUP.key;
+    itemsLayer[4 * MAP_W + 7] = PICKUP.coin;
+    coinAnim.set(4 * MAP_W + 7, { delay: 10, fall: false });
+    updatePlayer(p);
+    input.pressed[0] = 0;
+    for (let i = 0; i < 10; i++) updatePlayer(p);
+  `);
+  assert.equal(run("p.coins"), 1);
+  assert.equal(run("p.keys"), 1);
+  assert.equal(run("itemsLayer[4 * MAP_W + 7]"), run("PICKUP.coin"));
+  run("coinAnim.get(4 * MAP_W + 7).fall = true; updatePlayer(p)");
+  assert.equal(run("p.coins"), 2);
+});
+
 test("las explosiones usan Urban en cada bioma, tambien bajo premios compuestos", () => {
   const run = setup();
   run(`
@@ -327,6 +352,26 @@ test("los especiales de suelo atraviesan obstaculos rectos y diagonales", () => 
     assert.equal(run("q.hp"), ult === "area" ? 9 : 10);
     assert.equal(run("itemHits.filter(([x, y]) => x === target.tx * 8 + 4 && y === target.ty * 8 + 4).length"), 1);
     assert.equal(run("draws.some(c => c.tx === target.tx && c.ty === target.ty && c.id >= 156 && c.id <= 159)"), true);
+  }
+});
+
+test("el dash protege del dano de especiales rectos y diagonales", () => {
+  for (const facing of [5, 6]) {
+    const run = setup();
+    run(`
+      const p = { ch: { ult: "area" }, x: 16 << 8, y: 32 << 8,
+        facing: ${facing}, mana: 100, active: true, hp: 10, shield: 1 };
+      players = [p];
+      updateSpecial(p, BTN.SELECT);
+      const target = specialMarkerCells(p.sp)[0];
+      const q = { active: true, hp: 10, shield: 0, dash: {},
+        x: (target.tx * 8 - 4) << 8, y: (target.ty * 8 - 10) << 8 };
+      players.push(q);
+      specialHit(p, p.sp, 1, true);
+    `);
+    assert.equal(run("q.hp"), 10);
+    run("q.dash = null; specialHit(p, p.sp, 1, true)");
+    assert.equal(run("q.hp"), 9);
   }
 });
 

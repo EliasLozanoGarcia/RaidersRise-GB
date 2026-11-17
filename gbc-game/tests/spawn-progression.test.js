@@ -372,11 +372,18 @@ test("las cajas conservan premio y reducen la probabilidad de moneda", () => {
       return itemsLayer[4*MAP_W+4];
     }
   `);
-  assert.equal(run("level = 1; breakBox([10000, 65535])"), 153);
-  assert.equal(run("level = 10; breakBox([10000, 0])"), 153);
-  assert.equal(run("level = 10; breakBox([10000, 65535, 0])"), 152);
-  assert.equal(run("level = 10; breakBox([20000])"), 154);
+  assert.equal(run("level = 1; breakBox([12000, 65535])"), 153);
+  assert.equal(run("level = 10; breakBox([12000, 0])"), 153);
+  assert.equal(run("level = 10; breakBox([12000, 65535, 0])"), 152);
+  assert.equal(run("level = 10; breakBox([22000])"), 154);
+  const prizes = new Set();
+  for (const value of [0, 12000, 22000, 33000, 44000, 55000, 65535]) {
+    prizes.add(run(`level = 1; breakBox([${value}, 0])`));
+  }
+  assert.deepEqual([...prizes].sort((a, b) => a - b), [152, 153, 154, 155, 160, 161]);
   for (const value of [0, 14000, 27000, 40000, 53000, 65535]) {
-    assert.notEqual(run(`level = 10; breakBox([10000, 65535, ${value}])`), 154);
+    const prize = run(`level = 10; breakBox([12000, 65535, ${value}])`);
+    assert.notEqual(prize, 154);
+    assert.notEqual(prize, 162);
   }
 });

@@ -27,6 +27,12 @@ la resolución interna sigue siendo 160 × 144.
 | Teletransportarse (2 tiles, animado y con enfriamiento) | G | `.` |
 | Unirse | Activo al iniciar | Activo en Multiplayer |
 
+Kurt y Skreek hacen un dash de aproximadamente 1 segundo en lugar de teletransportarse.
+Durante el dash pueden cambiar de dirección con los controles de movimiento; al
+soltarlos, continúan en la última dirección. El dash termina antes si chocan con
+un obstáculo. Durante el dash son inmunes al daño y recogen monedas y objetos
+que atraviesen.
+
 Para abrir un cofre o una puerta, mantente empujándolo en su dirección durante
 1,5 segundos. La hoja de la puerta gira junto al marco y deja libre el paso. Si
 dejas de empujar o te alejas antes de abrirlos, el progreso se reinicia. La
@@ -81,6 +87,8 @@ Los proyectiles de la bazuca detonan al acercarse a un enemigo y dañan a otros
 dentro del radio de la explosión. La espada, los proyectiles y las explosiones
 de bazuca atraviesan las colisiones medias, pero no las totales;
 los proyectiles permanecen inmóviles brevemente al impactar.
+Las balas de Kurt impactan con el área visible de los enemigos, sin modificar
+sus colisiones de movimiento.
 Las abejas atraviesan los tiles de colisión media, pero no los sólidos; los
 personajes y enemigos terrestres no pueden atravesar ninguno de los dos.
 Empujar un cofre durante 1,5 segundos suma monedas al
@@ -115,8 +123,10 @@ nivel hasta dejar una si había alguna. Cada cofre entrega una moneda directa me
 (de cinco hasta un mínimo de una) y deja una moneda recogible menos (de hasta
 doce hasta un mínimo de una). Los enemigos que pueden soltar moneda pasan de
 un 100 % de probabilidad en el nivel 1 a un 10 % menos por nivel, con mínimo
-del 10 %. Al continuar tras morir se reinician las oleadas que estaban en
-curso; las ya completadas no se repiten.
+del 10 %. Cuando todos los jugadores activos se quedan sin vida, la partida
+termina y se muestran los niveles superados, enemigos derrotados, disparos,
+tiempo y recursos. Las estadísticas se acumulan entre niveles; desde la
+pantalla final se puede iniciar otra partida o volver al menú principal.
 
 Los cristales grandes del mapa aparecen solo en los niveles 3, 6, 9, etc.
 Para extraerlos hay que empujarlos durante 4,5 segundos mientras se sobrevive a
@@ -127,8 +137,8 @@ los cristales recogibles de las lucky blocks no cambian.
 Las antiguas cajas de mana son **lucky blocks**: se iluminan al recibir daño
 y tras tres impactos sueltan
 al azar un corazon (+1 vida hasta el maximo), una
-moneda, mana (+10 % de la barra), un cristal, un escudo, una llave o una
-granada. En el primer nivel los premios son equiprobables; en niveles posteriores
+moneda, mana (+10 % de la barra), un cristal, un escudo o una llave.
+En el primer nivel los premios son equiprobables; en niveles posteriores
 la probabilidad de moneda se reduce con el mismo factor que la de los enemigos,
 redistribuyendo el resto entre los premios que no son monedas ni mana, para
 mantener la probabilidad de mana. El escudo protege de enemigos, pinchos y especiales durante 5 segundos;

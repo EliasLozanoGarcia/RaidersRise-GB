@@ -74,6 +74,38 @@ test("el efecto de muerte dura doce frames y se congela durante la pausa", () =>
   assert.equal(run("enemyDeathEffects.length"), 0);
 });
 
+test("el dash protege del contacto enemigo y deja de hacerlo al terminar", () => {
+  const run = setupCamera();
+  run(`
+    players[0].inv = 0; players[0].dash = {};
+    enemies.push({ x: players[0].x, y: players[0].y, box: PBOX, hp: 4 });
+    updatePlayer = () => {};
+    const invulnFrames = () => 10;
+    update();
+  `);
+  assert.equal(run("players[0].hp"), 4);
+  assert.equal(run("players[0].inv"), 0);
+  run("players[0].dash = null; update()");
+  assert.equal(run("players[0].hp"), 3);
+  assert.equal(run("players[0].inv"), 10);
+});
+
+test("el dash protege de los pinchos y deja de hacerlo al terminar", () => {
+  const run = setupCamera();
+  run(`
+    players[0].inv = 0; players[0].dash = {};
+    spikes.push({ tx: 4, ty: 4, state: 1, t: 0 });
+    updatePlayer = () => {};
+    const invulnFrames = () => 10;
+    update();
+  `);
+  assert.equal(run("players[0].hp"), 4);
+  assert.equal(run("players[0].inv"), 0);
+  run("players[0].dash = null; update()");
+  assert.equal(run("players[0].hp"), 3);
+  assert.equal(run("players[0].inv"), 10);
+});
+
 test("cada fase del muro inicia una vibracion breve", () => {
   const run = setup();
   run("updateInteractives()");

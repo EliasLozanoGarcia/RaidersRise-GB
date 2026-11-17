@@ -348,10 +348,14 @@ function updatePlayer(p) {
   
   if (p.dash) {
     const dd = p.dash;
-    const step = dd.d[0] && dd.d[1] ? 181 : 256;
+    if (moving) dd.d = DIRS[DIR_INDEX[(dy + 1) * 3 + (dx + 1)]];
+    const baseStep = dd.d[0] && dd.d[1] ? 181 : 256;
+    const step = ((baseStep * 205) >> 8) >> 1;
+    collectPlayerPickups(p);
     for (let k = 0; k < 4 && dd.left > 0; k++) {
       const a = tryMove(p, dd.d[0] * step, 0, PBOX, true);
       const b = tryMove(p, 0, dd.d[1] * step, PBOX, true);
+      collectPlayerPickups(p);
       if (!a && !b) { dd.left = 0; break; }
       dd.left -= 1;
     }
@@ -362,7 +366,7 @@ function updatePlayer(p) {
   }
   if ((input.pressed[p.id] & BTN.B) && p.tpCooldown === 0) {
     if (p.ch.dash) {
-      p.dash = { d: DIRS[p.facing], left: 24 };
+      p.dash = { d: DIRS[p.facing], left: 240 };
       p.tpCooldown = CFG.teleportCooldown;
       sfx("teleport");
       return;
@@ -480,6 +484,12 @@ function updatePlayer(p) {
 
   updateSpecial(p, held);
 
+  collectPlayerPickups(p);
+
+  if (p.inv > 0) p.inv--;
+}
+
+function collectPlayerPickups(p) {
   const px = p.x >> 8;
   const py = p.y >> 8;
   const left = Math.max(0, (px + PBOX.x) >> 3);
@@ -494,8 +504,6 @@ function updatePlayer(p) {
       collectPickup(p, idx);
     }
   }
-
-  if (p.inv > 0) p.inv--;
 }
 
 function collectPickup(p, idx) {
@@ -661,7 +669,7 @@ function specialHit(p, sp, mult, hurtPlayers) {
         checkBulletHitItems(cell.tx * 8 + 4, cell.ty * 8 + 4);
     }
     if (hurtPlayers) for (const q of players) {
-      if (q.active && q.hp > 0 && !q.tp && q.shield === 0 && intersects(q.x >> 8, q.y >> 8, PBOX)) {
+      if (q.active && q.hp > 0 && !q.tp && !q.dash && q.shield === 0 && intersects(q.x >> 8, q.y >> 8, PBOX)) {
         q.hp -= specialDamage();
         q.hit = CFG.hurtFlash;
       }
@@ -675,7 +683,7 @@ function specialHit(p, sp, mult, hurtPlayers) {
     checkBulletHitItems((sp.tx + (k % sp.w)) * 8 + 4, (sp.ty + ((k / sp.w) | 0)) * 8 + 4);
   }
   if (hurtPlayers) for (const q of players) {
-    if (q.active && q.hp > 0 && !q.tp && q.shield === 0 && overlap(q.x >> 8, q.y >> 8, PBOX, 0, 0, r)) {
+    if (q.active && q.hp > 0 && !q.tp && !q.dash && q.shield === 0 && overlap(q.x >> 8, q.y >> 8, PBOX, 0, 0, r)) {
       q.hp -= specialDamage();
       q.hit = CFG.hurtFlash;
     }

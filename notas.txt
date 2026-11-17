@@ -1,6 +1,5 @@
 Errores:
 
-las balas no deberian atravesar las colisiones, deberian quedarse inmediatamente encima antes de desaparacer, sin dañar a lo que hay al otro lado.
 
 
 

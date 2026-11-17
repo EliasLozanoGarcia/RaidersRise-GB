@@ -272,13 +272,13 @@ function drawGameOver(ctx) {
   ctx.fillRect(0, 0, GBC_W, VIEW_H);
   const center = (str, y) => drawTextCentered(ctx, str, y);
   center("GAME OVER", 8);
-  const secs = (stats.time * 137) >> 13;
-  const mm = String((secs / 60) | 0).padStart(2, "0"), ss = String(secs % 60).padStart(2, "0");
+  const secs = Math.floor(stats.time / 59.73);
+  const mm = String(Math.floor(secs / 60)).padStart(2, "0"), ss = String(secs % 60).padStart(2, "0");
   const rows = [
-    ["OLEADA", wave],
+    ["NIVELES", level - 1],
     ["BAJAS", stats.kills],
     ["DISPAROS", stats.shots],
-    ["TIEMPO", mm + ss],
+    ["TIEMPO", mm + "M " + ss + "S"],
   ];
   let y = 28;
   for (const [label, value] of rows) {
@@ -294,7 +294,7 @@ function drawGameOver(ctx) {
     drawGlyph(ctx, PICKUP.crystal, 56 + i * 56 - (i ? 8 : 0), y + 2);
     drawText(ctx, String(p.crystals), 64 + i * 56 - (i ? 8 : 0), y + 2);
   });
-  ["CONTINUAR", "NUEVA PARTIDA"].forEach((label, i) => {
+  ["NUEVA PARTIDA", "MENU PRINCIPAL"].forEach((label, i) => {
     const lx = (GBC_W - textWidth(label)) >> 1;
     const ly = 88 + i * 12;
     drawText(ctx, label, lx, ly);
@@ -436,8 +436,7 @@ function drawHud(ctx) {
 }
 
 function enemySpriteY(e) {
-  const offset = e.type === "slime" ? 1 : e.type === "bigSlime" ? 2 : 0;
-  return (e.y >> 8) - cam.y - offset;
+  return (e.y >> 8) - cam.y - enemySpriteOffset(e);
 }
 
 const enemyFrameBottoms = new Map();

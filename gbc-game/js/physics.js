@@ -129,6 +129,10 @@ function bulletBlocked(b, bx, gy) {
   return boxBlocked(bx, gy, BBOX, true, false);
 }
 
+function enemySpriteOffset(e) {
+  return e.type === "slime" ? 1 : e.type === "bigSlime" ? 2 : 0;
+}
+
 // Comprueba cada pixel para evitar saltar colisiones estrechas o parciales.
 function attackPathClear(x0, y0, x1, y1) {
   const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));

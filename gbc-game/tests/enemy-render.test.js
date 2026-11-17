@@ -52,7 +52,7 @@ function setup() {
     let frame = 0, selFrame = -1, screen = "game", gameOver = false, paused = false, shop = null, wave = 0, wallShake = 0;
     function sfx() {}
   `, context);
-  for (const file of ["render.js", "entities.js", "main.js"]) {
+  for (const file of ["physics.js", "render.js", "entities.js", "main.js"]) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8"), context);
   }
   vm.runInContext("drawHud = () => {}; initEnemyFrameBottoms()", context);

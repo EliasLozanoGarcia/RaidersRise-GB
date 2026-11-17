@@ -62,7 +62,7 @@ function resetGame(keepUpgrades) {
   blasts.clear();
   wave = 0;
   gameOver = false;
-  stats = { kills: 0, time: 0, shots: 0 };
+  if (!keepUpgrades) stats = { kills: 0, time: 0, shots: 0 };
   goSel = 0;
   paused = false;
   cam.x = Math.max(0, Math.min(MAP_W * 8 - 160, (players[0].x >> 8) + 8 - 80));

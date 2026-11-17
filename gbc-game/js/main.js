@@ -31,7 +31,17 @@ function update() {
     }
     return;
   }
-  
+
+  if (gameOver) {
+    if (prAll & (BTN.UP | BTN.DOWN)) goSel ^= 1;
+    if (prAll & (BTN.START | BTN.A)) {
+      if (goSel === 0) openSelect();
+      else screen = "splash";
+    }
+    return;
+  }
+
+  stats.time++;
   const live = players.filter(p => p.active && p.hp > 0);
   const end = levelLogic && levelLogic.end;
 
@@ -42,16 +52,6 @@ function update() {
   })) {
     sfx("open");
     openShop("win");
-  }
-
-  if (!gameOver) stats.time++;
-  if (gameOver) {
-    const pr = input.pressed[0] | input.pressed[1];
-    if (pr & (BTN.UP | BTN.DOWN)) goSel ^= 1;
-    if (pr & (BTN.START | BTN.A)) {
-      if (goSel === 0) continueGame();
-      else { resetGame(); openSelect(); }
-    }
     return;
   }
 
@@ -99,7 +99,7 @@ function update() {
   for (const e of enemies) {
     if (e.hit > 0) e.hit--;
     for (const p of live) {
-      if (!p.tp && p.inv === 0 && p.shield === 0 && overlap(p.x >> 8, p.y >> 8, PBOX, e.x >> 8, e.y >> 8, e.box)) {
+      if (p.hp > 0 && !p.tp && !p.dash && p.inv === 0 && p.shield === 0 && overlap(p.x >> 8, p.y >> 8, PBOX, e.x >> 8, e.y >> 8, e.box)) {
         p.hp--;
         sfx("hurt");
         p.inv = invulnFrames();
@@ -108,8 +108,12 @@ function update() {
     }
   }
 
+  if (!players.some((p) => p.active && p.hp > 0)) {
+    gameOver = true;
+    goSel = 0;
+    return;
+  }
   updateSpawnPoints();
-  if (!players.some((p) => p.active && p.hp > 0)) openShop("death");
 }
 
 function updateCamera(live) {
@@ -157,10 +161,16 @@ function updateBullets() {
       if (step === 0) continue;
 
       const pad = b.beam ? 4 : CFG.bulletHitPad;
-      const hitBox = { x: -pad, y: -pad, w: 2 * pad + (b.beam ? 0 : 1), h: 2 * pad + (b.beam ? 0 : 1) };
+      let hitBox = { x: -pad, y: -pad, w: 2 * pad + (b.beam ? 0 : 1), h: 2 * pad + (b.beam ? 0 : 1) };
+      if (b.direct && b.bulletFrame === 0) hitBox = { x: -1, y: -4, w: 3, h: 8 };
+      else if (b.direct && b.bulletFrame === 1) hitBox = { x: -4, y: -4, w: 8, h: 8 };
+      else if (b.direct && b.bulletFrame === 2) hitBox = { x: -4, y: -1, w: 8, h: 3 };
       for (const e of enemies) {
-        if (e.hp <= 0 || !attackReachesBox(bx, gy, e.x >> 8, e.y >> 8, e.box, b.beam ? 0 : CFG.bulletGroundOffset)) continue;
-        const overlapHit = overlap(bx, by, hitBox, e.x >> 8, e.y >> 8, e.box);
+        const targetBox = b.direct
+          ? { x: 0, y: -enemySpriteOffset(e), w: e.size, h: e.size }
+          : e.box;
+        if (e.hp <= 0 || !attackReachesBox(bx, gy, e.x >> 8, e.y >> 8, targetBox, b.beam ? 0 : CFG.bulletGroundOffset)) continue;
+        const overlapHit = overlap(bx, by, hitBox, e.x >> 8, e.y >> 8, targetBox);
         if (b.beam) {
           if (overlapHit && !beamHits.has(e)) {
             beamHits.add(e);

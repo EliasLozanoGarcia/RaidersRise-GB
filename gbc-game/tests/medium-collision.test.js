@@ -247,7 +247,7 @@ test("cada proyectil se detiene en el primer pixel bloqueado y nunca dana al otr
     const y = kind === "beam" ? 27 : 21;
     run(`
       itemsLayer[3 * MAP_W + 3] = ${tile};
-      enemies = [{ x: 25 << 8, y: ${y} << 8, box: { x: 0, y: 0, w: 4, h: 4 }, hp: 100 }];
+      enemies = [{ x: 25 << 8, y: ${y} << 8, size: 4, box: { x: 0, y: 0, w: 4, h: 4 }, hp: 100 }];
       bullets = [{ x: 20 << 8, y: ${y} << 8, vx: 20 << 8, vy: 0, life: 100 << 8,
         direct: ${kind === "direct"}, beam: ${kind === "beam"} }];
       updateBullets();
@@ -264,13 +264,55 @@ test("cada proyectil se detiene en el primer pixel bloqueado y nunca dana al otr
   }
 });
 
+test("las balas verticales de Kurt alcanzan los bordes visibles de los enemigos", () => {
+  for (const [type, size, inset] of [["slime", 8, 1], ["bee", 8, 1], ["bigSlime", 16, 2]]) {
+    for (const [xOffset, hit] of [[size, true], [size + 1, false]]) {
+      const run = setup();
+      run(`
+        enemies = [{ type: "${type}", size: ${size}, x: 40 << 8, y: 40 << 8,
+          box: { x: ${inset}, y: ${inset}, w: ${size - 2 * inset}, h: ${size - 2 * inset} }, hp: 10 }];
+        bullets = [{ x: (40 + ${xOffset}) << 8, y: 72 << 8, vx: 0, vy: -32 << 8,
+          life: 100 << 8, direct: true, bulletFrame: 0 }];
+        updateBullets();
+      `);
+      assert.equal(run("enemies[0].hp"), hit ? 9 : 10, `${type}, x ${xOffset}`);
+    }
+  }
+});
+
+test("la punta visible de la bala vertical impacta al enemigo sin esperar al centro", () => {
+  const run = setup();
+  run(`
+    enemies = [{ type: "slime", size: 8, x: 40 << 8, y: 40 << 8,
+      box: { x: 1, y: 1, w: 6, h: 6 }, hp: 10 }];
+    bullets = [{ x: 44 << 8, y: 51 << 8, vx: 0, vy: -256,
+      life: 100 << 8, direct: true, bulletFrame: 0 }];
+    updateBullets();
+  `);
+  assert.equal(run("enemies[0].hp"), 9);
+});
+
+test("la caja visual de la bala de Kurt no atraviesa paredes", () => {
+  const run = setup();
+  run(`
+    for (let x = 4; x <= 6; x++) itemsLayer[6 * MAP_W + x] = 0;
+    enemies = [{ type: "slime", size: 8, x: 40 << 8, y: 40 << 8,
+      box: { x: 1, y: 1, w: 6, h: 6 }, hp: 10 }];
+    bullets = [{ x: 48 << 8, y: 72 << 8, vx: 0, vy: -32 << 8,
+      life: 100 << 8, direct: true, bulletFrame: 0 }];
+    updateBullets();
+  `);
+  assert.equal(run("enemies[0].hp"), 10);
+  assert.equal(run("bullets[0].linger"), 4);
+});
+
 test("todos los proyectiles atraviesan colisiones medias en ambas capas y alcanzan objetivos", () => {
   for (const kind of ["direct", "rocket", "beam"]) for (const layer of ["itemsLayer", "fondoLayer"]) {
     const run = setup();
     const y = kind === "beam" ? 27 : 21;
     run(`
       ${layer}[3 * MAP_W + 3] = 8;
-      enemies = [{ x: 34 << 8, y: ${y} << 8, box: { x: 0, y: 0, w: 4, h: 4 }, hp: 300 }];
+      enemies = [{ x: 34 << 8, y: ${y} << 8, size: 4, box: { x: 0, y: 0, w: 4, h: 4 }, hp: 300 }];
       bullets = [{ x: 20 << 8, y: ${y} << 8, vx: 20 << 8, vy: 0, life: 100 << 8,
         direct: ${kind === "direct"}, beam: ${kind === "beam"} }];
       updateBullets();
@@ -320,7 +362,7 @@ test("un disparo que nace dentro de una pared queda detenido sin danar enemigos"
   const run = setup();
   run(`
     itemsLayer[3 * MAP_W + 3] = 0;
-    enemies = [{ x: 26 << 8, y: 21 << 8, box: { x: 0, y: 0, w: 4, h: 4 }, hp: 10 }];
+    enemies = [{ x: 26 << 8, y: 21 << 8, size: 4, box: { x: 0, y: 0, w: 4, h: 4 }, hp: 10 }];
     bullets = [{ x: 24 << 8, y: 21 << 8, vx: 3 << 8, vy: 0, life: 100 << 8, direct: true }];
     updateBullets();
   `);
@@ -334,7 +376,7 @@ test("los proyectiles siguen alcanzando enemigos visibles y el rayo solo golpea 
     const run = setup();
     const y = kind === "beam" ? 27 : 21;
     run(`
-      enemies = [{ x: 25 << 8, y: ${y} << 8, box: { x: 0, y: 0, w: 4, h: 4 }, hp: 300 }];
+      enemies = [{ x: 25 << 8, y: ${y} << 8, size: 4, box: { x: 0, y: 0, w: 4, h: 4 }, hp: 300 }];
       bullets = [{ x: 20 << 8, y: ${y} << 8, vx: 10 << 8, vy: 0, life: 100 << 8,
         direct: ${kind === "direct"}, beam: ${kind === "beam"} }];
       updateBullets();
