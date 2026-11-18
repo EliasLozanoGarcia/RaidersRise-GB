@@ -83,6 +83,43 @@ const compSlot = new Map(), compFree = [], coinAnim = new Map(), transparentTile
 let compCv = null, compCtx = null;
 let specialCompCv = null, specialCompCtx = null;
 let transparentTilesetImage = null;
+let compositeCapture = null;
+
+function beginCompositeCapture(kind, x) {
+  if (typeof window === "undefined" || !window.CompositeRecorder) return;
+  const biome = assets.biomeTilesets.indexOf(assets.tilesetImage);
+  if (biome < 0 || biome > 2) {
+    window.CompositeRecorder.fail("Bioma desconocido al registrar una combinacion.");
+    return;
+  }
+  compositeCapture = { biome: ["urban", "desert", "snow"][biome], kind, layers: [], x };
+}
+
+function endCompositeCapture() {
+  if (!compositeCapture) return;
+  const { biome, kind, layers } = compositeCapture;
+  compositeCapture = null;
+  if (layers.length) window.CompositeRecorder.record({ biome, kind, layers });
+}
+
+function captureCompositeLayer(source, id, attr, x, y) {
+  if (!compositeCapture) return;
+  let name;
+  const biome = assets.biomeTilesets.indexOf(source);
+  if (biome >= 0 && biome < 3) name = ["urban", "desert", "snow"][biome];
+  else if (source === transparentTilesetImage) name = "biome-transparent";
+  else if (source === hitImages.tileset) name = "biome-hit";
+  else if (source === hitImages.transparentTileset) name = "biome-transparent-hit";
+  else if (source === hitImages.luckyTileset) name = "biome-lucky-hit";
+  else if (source === assets.pickupTileset) name = "pickups";
+  else if (source === hitImages.pickups) name = "pickups-hit";
+  else {
+    compositeCapture = null;
+    window.CompositeRecorder.fail("Imagen desconocida al registrar una combinacion.");
+    return;
+  }
+  compositeCapture.layers.push({ source: name, tile: id, attr: attr & 0x60, x: x - compositeCapture.x, y });
+}
 
 function initPickupTiles() {
   const canvas = document.createElement("canvas");
@@ -185,6 +222,7 @@ function drawTileInto(c, id, attr, ox, oy, image = assets.tilesetImage) {
     if (image === assets.tilesetImage) source = transparentTilesetImage;
     else if (image === hitImages.tileset && hitImages.transparentTileset) source = hitImages.transparentTileset;
   }
+  captureCompositeLayer(source, id, attr, ox, oy);
   c.drawImage(source, (id % 32) * 8, ((id / 32) | 0) * 8, 8, 8, -4, -4, 8, 8);
   c.restore();
 }
@@ -209,6 +247,7 @@ function setComposite(idx, dy, noItem = false) {
     compSlot.set(idx, slot);
   }
   const x = slot * 8;
+  beginCompositeCapture("normal", x);
   compCtx.clearRect(x, 0, 8, 8);
   compCtx.save();
   compCtx.beginPath();
@@ -222,6 +261,7 @@ function setComposite(idx, dy, noItem = false) {
   }
   if (!noItem && itemsLayer[idx] >= 0) drawItemInto(compCtx, itemsLayer[idx], itemsAttrs[idx], x, dy);
   compCtx.restore();
+  endCompositeCapture();
   if (typeof updateCompositeVram === "function") updateCompositeVram(slot);
   return true;
 }
@@ -235,6 +275,7 @@ function drawSpecialComposite(ctx, idx, id, attr, x, y, itemImage = assets.tiles
     specialCompCtx = specialCompCv.getContext("2d");
   }
   const c = specialCompCtx;
+  beginCompositeCapture("special-fallback", 0);
   c.clearRect(0, 0, 8, 8);
   c.save();
   c.beginPath();
@@ -249,8 +290,37 @@ function drawSpecialComposite(ctx, idx, id, attr, x, y, itemImage = assets.tiles
     drawItemInto(c, itemsLayer[idx], itemsAttrs[idx], 0, dy, itemImage);
   }
   c.restore();
+  endCompositeCapture();
   ctx.drawImage(specialCompCv, x, y);
   return true;
+}
+
+function buildSpecialComposite(idx, id, attr, itemImage = assets.tilesetImage, floorImage = assets.tilesetImage) {
+  if (!specialCompCtx) {
+    specialCompCv = document.createElement("canvas");
+    specialCompCv.width = specialCompCv.height = 8;
+    specialCompCtx = specialCompCv.getContext("2d");
+  }
+  const c = specialCompCtx;
+  beginCompositeCapture("special", 0);
+  c.clearRect(0, 0, 8, 8);
+  c.save();
+  c.beginPath();
+  c.rect(0, 0, 8, 8);
+  c.clip();
+  const transparentFloor = fondoClear(idx) && !FLOOR_COMPOSITE_TILES.has(itemsLayer[idx]);
+  if (!transparentFloor && fondoLayer[idx] >= 0)
+    drawTileInto(c, fondoLayer[idx], fondoAttrs[idx], 0, 0, floorImage);
+  drawTileInto(c, id, attr, 0, 0, floorImage);
+  if (transparentFloor) drawTileInto(c, fondoLayer[idx], fondoAttrs[idx], 0, 0);
+  if (itemsLayer[idx] >= 0 && !coinWaiting(idx)) {
+    const coin = coinAnim.get(idx);
+    const dy = coin && coin.fall ? -1 : 0;
+    drawItemInto(c, itemsLayer[idx], itemsAttrs[idx], 0, dy, itemImage);
+  }
+  c.restore();
+  endCompositeCapture();
+  return specialCompCv;
 }
 
 function releaseComposite(idx) {

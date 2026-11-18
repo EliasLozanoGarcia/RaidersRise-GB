@@ -3,31 +3,23 @@
 
 const hitImages = {};
 const HIT_RAMP = [0x0f380f, 0x2a4e19, 0x55742a, 0x7a953a];
-function makeHitImage(img, brighten = false) {
-  try {
-    const cv = document.createElement("canvas");
-    cv.width = img.width;
-    cv.height = img.height;
-    const c = cv.getContext("2d");
-    c.drawImage(img, 0, 0);
-    const data = c.getImageData(0, 0, cv.width, cv.height);
-    const px = data.data;
-    for (let i = 0; i < px.length; i += 4) {
-      if (px[i + 3] === 0) continue;
-      if (brighten) {
-        for (let j = 0; j < 3; j++) px[i + j] = Math.min(255, px[i + j] + 110);
-        continue;
-      }
-      const k = HIT_RAMP.indexOf((px[i] << 16) | (px[i + 1] << 8) | px[i + 2]);
-      if (k < 0) continue;
-      const n = HIT_RAMP[HIT_RAMP.length - 1 - k];
-      px[i] = n >> 16; px[i + 1] = (n >> 8) & 255; px[i + 2] = n & 255;
-    }
-    c.putImageData(data, 0, 0);
-    return cv;
-  } catch (err) {
-    return img;
+function makeHitImage(img) {
+  const cv = document.createElement("canvas");
+  cv.width = img.width;
+  cv.height = img.height;
+  const c = cv.getContext("2d");
+  c.drawImage(img, 0, 0);
+  const data = c.getImageData(0, 0, cv.width, cv.height);
+  const px = data.data;
+  for (let i = 0; i < px.length; i += 4) {
+    if (px[i + 3] === 0) continue;
+    const k = HIT_RAMP.indexOf((px[i] << 16) | (px[i + 1] << 8) | px[i + 2]);
+    if (k < 0) continue;
+    const n = HIT_RAMP[Math.min(k + 1, HIT_RAMP.length - 1)];
+    px[i] = n >> 16; px[i + 1] = (n >> 8) & 255; px[i + 2] = n & 255;
   }
+  c.putImageData(data, 0, 0);
+  return cv;
 }
 
 function makeEnemyHitImages(images) {
@@ -102,35 +94,41 @@ const toRGB555 = (r, g, b) => ((r >> 3) & 31) | (((g >> 3) & 31) << 5) | (((b >>
 const RGB_G0 = toRGB555(122, 149, 58); // #7a953a - tono mas claro
 const RGB_G1 = toRGB555(85, 116, 42);  // #55742a - tono medio claro
 const RGB_G2 = toRGB555(42, 78, 25);   // #2a4e19 - tono medio oscuro
-const RGB_G3 = toRGB555(15, 56, 15);   // #0f380f - tono mas oscuro
+const RGB_G3 = toRGB555(16, 56, 16);   // #0f380f cuantizado al RGB555 mas cercano
 const RGB_WHITE = 0x7fff;
 const RGB_BLACK = 0;
 
 function setupGBCPalettes() {
   if (!hasGBC() || !gbc.setBgPalette) return;
   // Paletas de fondo (0-7): 4 colores RGB555
-  gbc.setBgPalette(0, [RGB_G0, RGB_G1, RGB_G2, RGB_G3]); // 0: Fondo normal
-  gbc.setBgPalette(1, [RGB_WHITE, RGB_G0, RGB_G1, RGB_G2]); // 1: Fondo golpeado / flash
-  gbc.setBgPalette(2, [RGB_G3, RGB_G2, RGB_G1, RGB_G0]); // 2: Fondo HUD / bordes
-  gbc.setBgPalette(3, [RGB_G3, RGB_G0, RGB_G1, RGB_WHITE]); // 3: HUD digitos / iconos
-  gbc.setBgPalette(4, [RGB_G0, RGB_G1, RGB_G2, RGB_WHITE]); // 4: Especial / explosiones
-  gbc.setBgPalette(5, [RGB_G0, RGB_G1, RGB_G2, RGB_G3]);
-  gbc.setBgPalette(6, [RGB_G0, RGB_G1, RGB_G2, RGB_G3]);
-  gbc.setBgPalette(7, [RGB_G0, RGB_G1, RGB_G2, RGB_G3]);
+  const greens = [0x7a953a, 0x55742a, 0x2a4e19, 0x0f380f];
+  gbc.setBgPalette(0, [RGB_G0, RGB_G1, RGB_G2, RGB_G3], greens); // 0: Fondo normal
+  gbc.setBgPalette(1, [RGB_G0, RGB_G0, RGB_G1, RGB_G2], [0x7a953a, 0x7a953a, 0x55742a, 0x2a4e19]); // 1: Fondo golpeado / flash
+  gbc.setBgPalette(2, [RGB_G3, RGB_G2, RGB_G1, RGB_G0], [0x0f380f, 0x2a4e19, 0x55742a, 0x7a953a]); // 2: Fondo HUD / bordes
+  gbc.setBgPalette(3, [RGB_G3, RGB_G0, RGB_G1, RGB_WHITE], [0x0f380f, 0x7a953a, 0x55742a, 0xffffff]); // 3: HUD digitos / iconos
+  gbc.setBgPalette(4, [RGB_G0, RGB_G1, RGB_G2, RGB_WHITE], [0x7a953a, 0x55742a, 0x2a4e19, 0xffffff]); // 4: Especial / explosiones
+  gbc.setBgPalette(5, [RGB_G0, RGB_G1, RGB_G2, RGB_G3], greens);
+  gbc.setBgPalette(6, [RGB_G0, RGB_G1, RGB_G2, RGB_G3], greens);
+  gbc.setBgPalette(7, [RGB_G0, RGB_G1, RGB_G2, RGB_G3], greens);
 
   // Paletas de sprites (0-7): color 0 es transparente
-  gbc.setObjPalette(0, [0, RGB_G0, RGB_G1, RGB_G3]); // 0: Jugador 1 / pickups
-  gbc.setObjPalette(1, [0, RGB_WHITE, RGB_G0, RGB_G1]); // 1: Jugador flash golpe
-  gbc.setObjPalette(2, [0, RGB_WHITE, RGB_G3, RGB_G1]); // 2: Balas / haz
-  gbc.setObjPalette(3, [0, RGB_G0, RGB_G2, RGB_G3]); // 3: Jugador 2
-  gbc.setObjPalette(4, [0, RGB_G0, RGB_G1, RGB_G3]); // 4: Enemigos normal
-  gbc.setObjPalette(5, [0, RGB_WHITE, RGB_G0, RGB_G1]); // 5: Enemigos flash golpe
-  gbc.setObjPalette(6, [0, RGB_G0, RGB_WHITE, RGB_G3]); // 6: Muerte VFX / recarga
-  gbc.setObjPalette(7, [0, RGB_G0, RGB_G1, RGB_G2]); // 7: Teletransporte
+  gbc.setObjPalette(0, [0, RGB_G0, RGB_G1, RGB_G3], [null, 0x7a953a, 0x55742a, 0x0f380f]); // 0: Jugador 1 / pickups
+  gbc.setObjPalette(1, [0, RGB_G0, RGB_G1, RGB_G2], [null, 0x7a953a, 0x55742a, 0x2a4e19]); // 1: Jugador flash golpe
+  gbc.setObjPalette(2, [0, RGB_WHITE, RGB_G3, RGB_G1], [null, 0xffffff, 0x0f380f, 0x55742a]); // 2: Balas / haz
+  gbc.setObjPalette(3, [0, RGB_G0, RGB_G1, RGB_G3], [null, 0x7a953a, 0x55742a, 0x0f380f]); // 3: Jugador 2
+  gbc.setObjPalette(4, [0, RGB_G0, RGB_G1, RGB_G3], [null, 0x7a953a, 0x55742a, 0x0f380f]); // 4: Enemigos normal
+  gbc.setObjPalette(5, [0, RGB_G0, RGB_G1, RGB_G2], [null, 0x7a953a, 0x55742a, 0x2a4e19]); // 5: Enemigos flash golpe
+  gbc.setObjPalette(6, [0, RGB_G0, RGB_WHITE, RGB_G3], [null, 0x7a953a, 0xffffff, 0x0f380f]); // 6: Muerte VFX / recarga
+  gbc.setObjPalette(7, [0, RGB_G0, RGB_G1, RGB_G2], [null, 0x7a953a, 0x55742a, 0x2a4e19]); // 7: Teletransporte
 }
 
 // ------------------------------------------------------------ Conversion de graficos a 2bpp VRAM (16 bytes por tile 8x8)
-function convert8x8To2bpp(pixels, width, sx, sy, isSprite = false) {
+const GBC_GRAPHICS_PALETTE = [[122, 149, 58], [85, 116, 42], [42, 78, 25], [15, 56, 15]];
+const GBC_SPRITE_PALETTE = [[122, 149, 58], [85, 116, 42], [42, 78, 25], [15, 56, 15]];
+const GBC_SPRITE_INDEX = [1, 2, 2, 3];
+const GBC_HIT_SPRITE_INDEX = [1, 1, 2, 3];
+
+function convert8x8To2bpp(pixels, width, sx, sy, mode = false) {
   const bytes = new Uint8Array(16);
   for (let y = 0; y < 8; y++) {
     let lo = 0, hi = 0;
@@ -138,23 +136,26 @@ function convert8x8To2bpp(pixels, width, sx, sy, isSprite = false) {
       const idx = ((sy + y) * width + (sx + x)) * 4;
       const r = pixels[idx], g = pixels[idx + 1], b = pixels[idx + 2], a = pixels[idx + 3];
       let ci;
-      if (isSprite) {
-        if (a < 64) ci = 0;
-        else {
-          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-          if (lum > 130) ci = 1;
-          else if (lum > 65) ci = 2;
-          else ci = 3;
+      if (a < 64) {
+        ci = 0;
+      } else if (mode === true || mode === "hitSprite") {
+        let nearest = 0, distance = Infinity;
+        for (let i = 0; i < GBC_SPRITE_PALETTE.length; i++) {
+          const color = GBC_SPRITE_PALETTE[i];
+          const dr = r - color[0], dg = g - color[1], db = b - color[2];
+          const next = dr * dr + dg * dg + db * db;
+          if (next < distance) { distance = next; nearest = i; }
         }
+        ci = (mode === "hitSprite" ? GBC_HIT_SPRITE_INDEX : GBC_SPRITE_INDEX)[nearest];
       } else {
-        if (a < 64) ci = 0;
-        else {
-          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-          if (lum > 140) ci = 0;
-          else if (lum > 90) ci = 1;
-          else if (lum > 45) ci = 2;
-          else ci = 3;
+        let nearest = 0, distance = Infinity;
+        for (let i = 0; i < GBC_GRAPHICS_PALETTE.length; i++) {
+          const color = GBC_GRAPHICS_PALETTE[i];
+          const dr = r - color[0], dg = g - color[1], db = b - color[2];
+          const next = dr * dr + dg * dg + db * db;
+          if (next < distance) { distance = next; nearest = i; }
         }
+        ci = mode === "text" ? 1 : nearest;
       }
       lo |= (ci & 1) << (7 - x);
       hi |= ((ci >> 1) & 1) << (7 - x);
@@ -166,10 +167,10 @@ function convert8x8To2bpp(pixels, width, sx, sy, isSprite = false) {
 }
 
 const imagePixelCache = new WeakMap();
-function getImagePixels(img) {
+function getImagePixels(img, useCache = true) {
   if (!img) return null;
   if (img.pixels && img.width && img.height) return { pixels: img.pixels, width: img.width, height: img.height };
-  if (imagePixelCache.has(img)) return imagePixelCache.get(img);
+  if (useCache && imagePixelCache.has(img)) return imagePixelCache.get(img);
   try {
     const cv = document.createElement("canvas");
     cv.width = img.width || 8;
@@ -178,7 +179,7 @@ function getImagePixels(img) {
     ctx.drawImage(img, 0, 0);
     const data = ctx.getImageData(0, 0, cv.width, cv.height);
     const res = { pixels: data.data, width: cv.width, height: cv.height };
-    imagePixelCache.set(img, res);
+    if (useCache) imagePixelCache.set(img, res);
     return res;
   } catch (e) {
     return null;
@@ -191,7 +192,20 @@ function ensureTilesetLoaded() {
   const ts = assets && assets.tilesetImage;
   if (ts && ts !== currentLoadedTileset) {
     loadTilesetToVram(ts, 0, 0);
+    loadPickupTilesToVram();
     currentLoadedTileset = ts;
+    syncAllCompositesToVram();
+    updateTextBufferVram();
+  }
+}
+
+function loadPickupTilesToVram() {
+  if (!hasGBC() || !gbc.vram || !assets || !assets.pickupTileset) return;
+  const pObj = getImagePixels(assets.pickupTileset);
+  if (!pObj) return;
+  for (let id = PICKUP.heart; id <= PICKUP.crystal; id++) {
+    const bytes = convert8x8To2bpp(pObj.pixels, pObj.width, (id % 32) * 8, (id >> 5) * 8, false);
+    gbc.vram[0].set(bytes, id * 16);
   }
 }
 
@@ -210,41 +224,71 @@ function loadTilesetToVram(img, bank = 0, startId = 0) {
 }
 
 function updateCompositeVram(slot) {
-  if (!hasGBC() || !gbc.vram || !compCv) return;
-  const pObj = getImagePixels(compCv);
+  if (!hasGBC() || !gbc.vram || typeof compCv === "undefined" || !compCv) return;
+  const pObj = getImagePixels(compCv, false);
   if (!pObj) return;
   const bytes = convert8x8To2bpp(pObj.pixels, pObj.width, slot * 8, 0, false);
   gbc.vram[0].set(bytes, (160 + slot) * 16);
 }
 
 function syncAllCompositesToVram() {
-  if (!hasGBC() || !gbc.vram || !compCv) return;
-  for (let s = 0; s < COMP_SLOTS; s++) updateCompositeVram(s);
+  if (!hasGBC() || !gbc.vram || typeof compCv === "undefined" || !compCv ||
+      typeof COMP_SLOTS === "undefined") return;
+  const pObj = getImagePixels(compCv, false);
+  if (!pObj) return;
+  for (let s = 0; s < COMP_SLOTS; s++) {
+    const bytes = convert8x8To2bpp(pObj.pixels, pObj.width, s * 8, 0, false);
+    gbc.vram[0].set(bytes, (160 + s) * 16);
+  }
+}
+
+const TEXT_VRAM_FIRST = 160;
+const SPECIAL_VRAM_FIRST = 192;
+const SPECIAL_VRAM_IDS = 64;
+function specialCompositeVramTile(idx, id, attr, cache) {
+  if (typeof buildSpecialComposite !== "function") return null;
+  const key = `${idx}:${id}:${attr}`;
+  const cached = cache.get(key);
+  if (cached !== undefined) return cached;
+  if (cache.size >= SPECIAL_VRAM_IDS) return null;
+  const canvas = buildSpecialComposite(idx, id, attr);
+  const pObj = canvas && getImagePixels(canvas, false);
+  if (!pObj) return null;
+  const slot = cache.size, tileId = SPECIAL_VRAM_FIRST + slot;
+  gbc.vram[1].set(convert8x8To2bpp(pObj.pixels, pObj.width, 0, 0, false), tileId * 16);
+  cache.set(key, tileId);
+  return tileId;
 }
 
 function updateTextBufferVram() {
   if (!hasGBC() || !gbc.vram || !assets.textBuffer) return;
-  const pObj = getImagePixels(assets.textBuffer);
+  const pObj = getImagePixels(assets.textBuffer, false);
   if (!pObj) return;
   for (let i = 0; i < TEXT_TILES; i++) {
-    const bytes = convert8x8To2bpp(pObj.pixels, pObj.width, i * 8, 0, false);
-    gbc.vram[0].set(bytes, TEXT_IDS[i] * 16);
+    const bytes = convert8x8To2bpp(pObj.pixels, pObj.width, i * 8, 0, "text");
+    gbc.vram[1].set(bytes, TEXT_IDS[i] * 16);
   }
 }
 
-const spriteTileCache = new Map();
-function getOrCreateSpriteTile(img, sx, sy) {
+const spriteTileCache = new WeakMap();
+function getOrCreateSpriteTile(img, sx, sy, hit = false) {
   if (!img) return null;
-  const key = `${img.src || img.name || "img"}:${sx},${sy}`;
-  if (spriteTileCache.has(key)) return spriteTileCache.get(key);
+  let tiles = spriteTileCache.get(img);
+  if (!tiles) {
+    tiles = new Map();
+    spriteTileCache.set(img, tiles);
+  }
+  const key = `${sx},${sy},${hit}`;
+  if (tiles.has(key)) return tiles.get(key);
   const pObj = getImagePixels(img);
   if (!pObj) return null;
-  const bytes = convert8x8To2bpp(pObj.pixels, pObj.width, sx, sy, true);
-  spriteTileCache.set(key, bytes);
+  const bytes = convert8x8To2bpp(pObj.pixels, pObj.width, sx, sy, hit ? "hitSprite" : true);
+  tiles.set(key, bytes);
   return bytes;
 }
 
 let fixedSpritesInitialized = false;
+const SMALL_SHOT_TILE_FIRST = 12, BIG_SHOT_TILE_FIRST = 157;
 function initFixedSpritesVram() {
   if (!hasGBC() || !gbc.vram || fixedSpritesInitialized) return;
   fixedSpritesInitialized = true;
@@ -280,15 +324,17 @@ function initFixedSpritesVram() {
     if (dObj) gbc.vram[1].set(convert8x8To2bpp(dObj.pixels, 8, 0, 0, true), 9 * 16);
   }
 
-  // Tiles 12, 13, 14: fotogramas disparo
-  const shotImg = assets && (assets.shotSmallImage || assets.shotBigImage);
-  if (shotImg) {
+  for (const [shotImg, firstTile] of [
+    [assets.shotSmallImage, SMALL_SHOT_TILE_FIRST],
+    [assets.shotBigImage, BIG_SHOT_TILE_FIRST]
+  ]) {
+    if (!shotImg) continue;
     const sObj = getImagePixels(shotImg);
     if (sObj) {
       const frames = sObj.width >= 12 ? 3 : 1;
       const fw = (sObj.width / frames) | 0;
-      for (let f = 0; f < frames && f < 3; f++) {
-        gbc.vram[1].set(convert8x8To2bpp(sObj.pixels, sObj.width, f * fw, 0, true), (12 + f) * 16);
+      for (let f = 0; f < 3; f++) {
+        gbc.vram[1].set(convert8x8To2bpp(sObj.pixels, sObj.width, (frames === 1 ? 0 : f) * fw, 0, true), (firstTile + f) * 16);
       }
     }
   }
@@ -383,17 +429,14 @@ function drawSpecialTile(ctx, cell, id, attr, hit = false, hitImage = null, floo
 // ------------------------------------------------------------ HUD (3 tiles de alto, parte inferior)
 const GLYPH_COIN = PICKUP.coin, GLYPH_DIGIT0 = 127; // digitos: 128-136 = 1-9, 137 = 0
 
-// Texto: los glifos de la fuente 8x8 (ancho proporcional) se componen en 32 tiles libres del tileset
-// (ids 74-92 y 106-118, transparentes en el PNG) y despues se pintan como tiles.
+// Texto: los glifos de la fuente 8x8 se componen en 32 tiles libres del banco 1.
 const FONT_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,ñ";
 const EXTRA_FONT_CHARS = "/©";
 const EXTRA_GLYPHS = [
   ["0000010", "0000100", "0000100", "0001000", "0010000", "0010000", "0100000"],
   ["0111110", "1000001", "1011101", "1010001", "1011101", "1000001", "0111110"],
 ];
-const TEXT_IDS = [];
-for (let i = 74; i <= 92; i++) TEXT_IDS.push(i);
-for (let i = 106; i <= 118; i++) TEXT_IDS.push(i);
+const TEXT_IDS = Array.from({ length: 32 }, (_, i) => TEXT_VRAM_FIRST + i);
 const TEXT_TILES = TEXT_IDS.length, SPACE_W = 3;
 const TEXT_SLOT = new Map(TEXT_IDS.map((id, i) => [id, i]));
 const fontGlyphs = {};
@@ -539,7 +582,7 @@ function drawGameOver(ctx) {
 }
 
 function drawGlyph(ctx, id, x, y) {
-  if (hasGBCPPU() && gbc.mapTile) {
+  if (screen === "game" && hasGBCPPU() && gbc.mapTile) {
     const isHud = y >= VIEW_H;
     const isOverlay = gameOver || shop || paused;
     const map = (isHud || isOverlay) ? 1 : 0;
@@ -547,8 +590,8 @@ function drawGlyph(ctx, id, x, y) {
     const c = x >> 3;
     if (r >= 0 && r < 32 && c >= 0 && c < 32) {
       const mi = r * 32 + c;
-      gbc.mapTile[map][mi] = id;
-      gbc.mapAttr[map][mi] = 3;
+      gbc.mapTile[map][mi] = isHud && !TEXT_SLOT.has(id) ? hudTileId(id) : id;
+      gbc.mapAttr[map][mi] = TEXT_SLOT.has(id) ? 0x0b : isHud ? 0x08 : 3;
     }
     return;
   }
@@ -561,7 +604,17 @@ function drawGlyph(ctx, id, x, y) {
 }
 
 let hudBarHalf, hudBarFull, hudBarEndHalf, hudBarLoopHalf, hudBarLoopFull, hudTop;
+const HUD_VRAM_FIRST = 96;
+const HUD_TILE_IDS = [80, 81, 103, 104, 105, 119, 120,
+  ...Array.from({ length: 26 }, (_, i) => 125 + i), 152, 153, 154, 155];
+const HUD_TILES = new Map(HUD_TILE_IDS.map((id, i) => [id, HUD_VRAM_FIRST + i]));
 const HUD_IMAGE_TILES = new Map();
+
+function hudTileId(id) {
+  const tile = HUD_TILES.get(id);
+  if (tile === undefined) throw new Error(`Tile ${id} no reservado para el HUD`);
+  return tile;
+}
 
 function initHud() {
   const atlas = assets.biomeTilesets[0];
@@ -609,28 +662,37 @@ function initHud() {
   for (let x = 0; x < 8; x++)
     topCtx.drawImage(atlas, (142 % 32) * 8 + 7, (142 >> 5) * 8, 1, 8, x, 0, 1, 8);
 
-  HUD_IMAGE_TILES.set(hudTop, 240);
-  HUD_IMAGE_TILES.set(hudBarHalf, 241);
-  HUD_IMAGE_TILES.set(hudBarFull, 242);
-  HUD_IMAGE_TILES.set(hudBarEndHalf, 243);
-  HUD_IMAGE_TILES.set(hudBarLoopHalf, 244);
-  HUD_IMAGE_TILES.set(hudBarLoopFull, 245);
+  const firstImage = HUD_VRAM_FIRST + HUD_TILE_IDS.length;
+  HUD_IMAGE_TILES.set(hudTop, firstImage);
+  HUD_IMAGE_TILES.set(hudBarHalf, firstImage + 1);
+  HUD_IMAGE_TILES.set(hudBarFull, firstImage + 2);
+  HUD_IMAGE_TILES.set(hudBarEndHalf, firstImage + 3);
+  HUD_IMAGE_TILES.set(hudBarLoopHalf, firstImage + 4);
+  HUD_IMAGE_TILES.set(hudBarLoopFull, firstImage + 5);
   if (hasGBC() && gbc.vram) {
+    const atlasPixels = getImagePixels(atlas);
+    if (!atlasPixels) throw new Error("No se pudieron leer los tiles del HUD");
+    for (const [id, tid] of HUD_TILES) {
+      const bytes = convert8x8To2bpp(atlasPixels.pixels, atlasPixels.width, (id % 32) * 8, (id >> 5) * 8, false);
+      gbc.vram[1].set(bytes, tid * 16);
+    }
     for (const [cv, tid] of HUD_IMAGE_TILES) {
       const pObj = getImagePixels(cv);
-      if (pObj) gbc.vram[0].set(convert8x8To2bpp(pObj.pixels, 8, 0, 0, false), tid * 16);
+      if (!pObj) throw new Error("No se pudo leer una imagen del HUD");
+      gbc.vram[1].set(convert8x8To2bpp(pObj.pixels, 8, 0, 0, false), tid * 16);
     }
   }
 }
 
 function drawHudImage(ctx, image, sx, sy, x, y, attr = 0) {
   if (hasGBCPPU() && gbc.mapTile) {
-    const tileId = HUD_IMAGE_TILES.get(image) || 140;
+    const tileId = HUD_IMAGE_TILES.get(image);
+    if (tileId === undefined) throw new Error("Imagen del HUD no reservada en VRAM");
     const c = x >> 3, r = (y - VIEW_H) >> 3;
     if (r >= 0 && r < 3 && c >= 0 && c < 20) {
       const mi = r * 32 + c;
       gbc.mapTile[1][mi] = tileId;
-      gbc.mapAttr[1][mi] = attr | 2;
+      gbc.mapAttr[1][mi] = attr | 0x08;
     }
     return;
   }
@@ -647,8 +709,8 @@ function drawHudTile(ctx, id, x, y, attr = 0) {
     const c = x >> 3, r = (y - VIEW_H) >> 3;
     if (r >= 0 && r < 3 && c >= 0 && c < 20) {
       const mi = r * 32 + c;
-      gbc.mapTile[1][mi] = id;
-      gbc.mapAttr[1][mi] = attr | 2;
+      gbc.mapTile[1][mi] = hudTileId(id);
+      gbc.mapAttr[1][mi] = attr | 0x08;
     }
     return;
   }
@@ -666,8 +728,8 @@ function drawHudNumber(ctx, value, x, y, width) {
       const tileId = GLYPH_DIGIT0 + (d === 0 ? 10 : d);
       const mi = r * 32 + (cStart + i);
       if (mi >= 0 && mi < 1024) {
-        gbc.mapTile[1][mi] = tileId;
-        gbc.mapAttr[1][mi] = 3;
+        gbc.mapTile[1][mi] = hudTileId(tileId);
+        gbc.mapAttr[1][mi] = 0x08;
       }
     }
     return;
@@ -690,6 +752,7 @@ function drawHud(ctx) {
   }
   for (let x = 1; x < 19; x++) {
     drawHudImage(ctx, hudTop, 0, 0, x * 8, top);
+    drawHudTile(ctx, 146, x * 8, top + 8);
     drawHudTile(ctx, 149, x * 8, top + 16);
   }
   drawHudTile(ctx, 142, 0, top);
@@ -820,6 +883,7 @@ function renderGBC() {
 
   // 1. Capa de fondo y items en gbc.mapTile[0] / gbc.mapAttr[0]
   const specialCellMap = new Map();
+  const specialVramCache = new Map();
   for (const p of players) {
     if (!p.active || p.hp <= 0 || !p.sp) continue;
     const aiming = p.sp.state === "aim";
@@ -847,8 +911,9 @@ function renderGBC() {
 
       let tid, attr;
       if (spec) {
-        tid = spec.id;
-        attr = spec.attr || 0;
+        const specialTile = specialCompositeVramTile(idx, spec.id, spec.attr || 0, specialVramCache);
+        tid = specialTile === null ? spec.id : specialTile;
+        attr = specialTile === null ? (spec.attr || 0) : (isFlashed ? 9 : 8);
       } else if (compSlot.has(idx) && !isFlashed) {
         tid = 160 + compSlot.get(idx);
         attr = 0;
@@ -892,10 +957,10 @@ function renderGBC() {
     const sheet = assets[p.ch.img];
     const baseTile = p.id === 0 ? 0 : 4;
     if (sheet) {
-      const tl = getOrCreateSpriteTile(sheet, spriteColumn * 16, p.row * 16);
-      const tr = getOrCreateSpriteTile(sheet, spriteColumn * 16 + 8, p.row * 16);
-      const bl = getOrCreateSpriteTile(sheet, spriteColumn * 16, p.row * 16 + 8);
-      const br = getOrCreateSpriteTile(sheet, spriteColumn * 16 + 8, p.row * 16 + 8);
+      const tl = getOrCreateSpriteTile(sheet, spriteColumn * 16, p.row * 16, p.hit > 0);
+      const tr = getOrCreateSpriteTile(sheet, spriteColumn * 16 + 8, p.row * 16, p.hit > 0);
+      const bl = getOrCreateSpriteTile(sheet, spriteColumn * 16, p.row * 16 + 8, p.hit > 0);
+      const br = getOrCreateSpriteTile(sheet, spriteColumn * 16 + 8, p.row * 16 + 8, p.hit > 0);
       if (tl) gbc.vram[1].set(tl, baseTile * 16);
       if (tr) gbc.vram[1].set(tr, (baseTile + 1) * 16);
       if (bl) gbc.vram[1].set(bl, (baseTile + 2) * 16);
@@ -956,8 +1021,9 @@ function renderGBC() {
       gbc.setSprite(oamIdx++, bx - 4, by - 4, 11, 0x08 | 2);
     } else if (b.img && assets[b.img]) {
       const fIdx = (b.bulletFrame ?? 2);
-      const attr = 0x08 | 2 | (b.mirror ? 0x20 : 0);
-      gbc.setSprite(oamIdx++, bx - 4, by - 4, 12 + fIdx, attr);
+      const big = b.img === "shotBigImage";
+      const attr = 0x08 | (big ? 0 : 2) | (b.mirror ? 0x20 : 0);
+      gbc.setSprite(oamIdx++, bx - 4, by - 4, (big ? BIG_SHOT_TILE_FIRST : SMALL_SHOT_TILE_FIRST) + fIdx, attr);
     } else {
       gbc.setSprite(oamIdx++, bx - 4, by - 4, 10, 0x08 | 2);
     }
@@ -980,7 +1046,7 @@ function renderGBC() {
     const rank = (e) => (e.hid >= 2 ? 0 : e.hid === 1 ? 1 : 2);
     cand.sort((a, b) => rank(a) - rank(b) || a.dist - b.dist);
     const lineCount = new Map();
-    let spriteCount = 0;
+    let spriteCount = CFG.maxSprites - Math.min(CFG.maxSprites, oamIdx);
     for (const e of cand) {
       const py = enemySpriteY(e);
       const cells = e.size >> 3;
@@ -1005,31 +1071,34 @@ function renderGBC() {
   }
   visibleEnemies.sort((a, b) => a.y + a.sprite.bottom - b.y - b.sprite.bottom);
 
-  let enemyTileCursor = 64;
+  let enemyTileCursor = 48;
+  const enemyTileLimit = HUD_VRAM_FIRST;
   for (const { e, sprite, y } of visibleEnemies) {
     const ex = (e.x >> 8) - cam.x + shakeX;
     const ey = y;
     const img = assets[e.sprite];
     const attr = 0x08 | (e.hit > 0 ? 5 : 4);
     if (e.size === 8) {
-      if (oamIdx < 40 && enemyTileCursor < 256) {
+      if (oamIdx < 40 && enemyTileCursor < enemyTileLimit) {
         const tid = enemyTileCursor++;
-        const bytes = getOrCreateSpriteTile(img, sprite.sx, sprite.sy);
-        if (bytes) gbc.vram[1].set(bytes, tid * 16);
+        const bytes = getOrCreateSpriteTile(img, sprite.sx, sprite.sy, e.hit > 0);
+        if (!bytes) continue;
+        gbc.vram[1].set(bytes, tid * 16);
         gbc.setSprite(oamIdx++, ex, ey, tid, attr);
       }
     } else if (e.size === 16) {
-      if (oamIdx <= 36 && enemyTileCursor <= 252) {
+      if (oamIdx <= 36 && enemyTileCursor <= enemyTileLimit - 4) {
         const tid = enemyTileCursor;
         enemyTileCursor += 4;
-        const tl = getOrCreateSpriteTile(img, sprite.sx, sprite.sy);
-        const tr = getOrCreateSpriteTile(img, sprite.sx + 8, sprite.sy);
-        const bl = getOrCreateSpriteTile(img, sprite.sx, sprite.sy + 8);
-        const br = getOrCreateSpriteTile(img, sprite.sx + 8, sprite.sy + 8);
-        if (tl) gbc.vram[1].set(tl, tid * 16);
-        if (tr) gbc.vram[1].set(tr, (tid + 1) * 16);
-        if (bl) gbc.vram[1].set(bl, (tid + 2) * 16);
-        if (br) gbc.vram[1].set(br, (tid + 3) * 16);
+        const tl = getOrCreateSpriteTile(img, sprite.sx, sprite.sy, e.hit > 0);
+        const tr = getOrCreateSpriteTile(img, sprite.sx + 8, sprite.sy, e.hit > 0);
+        const bl = getOrCreateSpriteTile(img, sprite.sx, sprite.sy + 8, e.hit > 0);
+        const br = getOrCreateSpriteTile(img, sprite.sx + 8, sprite.sy + 8, e.hit > 0);
+        if (!tl || !tr || !bl || !br) continue;
+        gbc.vram[1].set(tl, tid * 16);
+        gbc.vram[1].set(tr, (tid + 1) * 16);
+        gbc.vram[1].set(bl, (tid + 2) * 16);
+        gbc.vram[1].set(br, (tid + 3) * 16);
         gbc.setSprite(oamIdx++, ex, ey, tid + 0, attr);
         gbc.setSprite(oamIdx++, ex + 8, ey, tid + 1, attr);
         gbc.setSprite(oamIdx++, ex, ey + 8, tid + 2, attr);

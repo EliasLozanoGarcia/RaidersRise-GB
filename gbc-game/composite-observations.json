@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "combinations": [
+    {
+      "biome": "urban",
+      "kind": "normal",
+      "layers": [
+        {
+          "source": "urban",
+          "tile": 49,
+          "attr": 0,
+          "x": 0,
+          "y": 0
+        },
+        {
+          "source": "biome-transparent",
+          "tile": 69,
+          "attr": 32,
+          "x": 0,
+          "y": 0
+        }
+      ]
+    }
+  ]
+}

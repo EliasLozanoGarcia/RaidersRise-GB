@@ -12,6 +12,32 @@ python -m http.server 8000 --directory .\gbc-game
 Luego abre `http://localhost:8000`. El navegador bloquea la carga de los CSV
 cuando se abre la pagina directamente con `file://`.
 
+### Registrar combinaciones de tiles
+
+Para guardar automáticamente las combinaciones mientras juegas, inicia el
+servidor de registro desde `gbc-game`:
+
+```powershell
+node .\tools\composite-server.js
+```
+
+Abre `http://127.0.0.1:8000` y deja el servidor ejecutándose. El contador bajo
+el juego muestra el total guardado y las combinaciones pendientes. Se acumulan
+en `composite-observations.json` entre partidas y reinicios; el objetivo de
+1024 no limita el registro. Si el puerto está ocupado, usa otro con
+`$env:PORT=8001; node .\tools\composite-server.js` y abre ese puerto.
+Usa una sola instancia del servidor para este archivo.
+
+El registro contiene recetas únicas observadas al construir tiles compuestos:
+bioma, capas ordenadas, fuente, ID interno, espejos y desplazamiento. Recetas
+distintas pueden producir los mismos píxeles, por lo que el total no es aún un
+recuento exacto de gráficos únicos ni mide su frecuencia visual. Los cambios
+de paleta aplicados posteriormente no son recetas adicionales. No se generan
+todavía los tiles pregenerados ni se sustituye la composición durante la partida.
+Si falla la conexión, el navegador conserva los pendientes en su almacenamiento
+local y reintenta; vuelve a abrir la misma dirección y puerto. Si aparece un
+error de almacenamiento, no cierres la página antes de resolverlo.
+
 El selector **Escala del juego** permite elegir entre el tamaño automático
 (el predeterminado) y las escalas fijas 1:1, 1:2, 1:3 y 1:4. Las escalas fijas
 mantienen píxeles enteros y pueden desbordar la ventana si esta es estrecha;
@@ -87,6 +113,8 @@ Los proyectiles de la bazuca detonan al acercarse a un enemigo y dañan a otros
 dentro del radio de la explosión. La espada, los proyectiles y las explosiones
 de bazuca atraviesan las colisiones medias, pero no las totales;
 los proyectiles permanecen inmóviles brevemente al impactar.
+Kathy usa `assets/disparo_Big.png` para su bazuca; Kurt usa
+`assets/disparo_Small.png` para su ametralladora.
 Las balas de Kurt impactan con el área visible de los enemigos, sin modificar
 sus colisiones de movimiento.
 Las abejas atraviesan los tiles de colisión media, pero no los sólidos; los
@@ -96,8 +124,8 @@ inventario y deja monedas recogibles sobre el cofre y en celdas transitables
 cercanas. Los enemigos derrotados también pueden soltar monedas: camina sobre
 ellas para recogerlas; el total aparece en el HUD. Los enemigos varían
 ligeramente su velocidad, vagan cuando están lejos y evitan amontonarse. Al
-recibir daño y sobrevivir, su sprite se aclara brevemente usando los mismos
-cuatro colores de la paleta de los enemigos. Al morir aparece durante 0,2 s
+recibir daño, personajes, enemigos y objetos usan brevemente la paleta
+`#7A953A`, `#7A953A`, `#55742A`, `#2A4E19`. Al morir aparece durante 0,2 s
 un efecto de 8 × 8 píxeles centrado sobre el enemigo.
 
 Cada punto de aparición tiene sus propias oleadas: la siguiente comienza tras
@@ -154,8 +182,11 @@ los numeros de Tiled 153–156 (IDs internos 152–155).
 
 - `index.html` carga el motor, los controles, `js/loader_dmg.js` y `js/game.js`.
 - `engine/gbc.js` conserva el motor de colisiones y el renderizador retro anterior.
-- Los tilesets Urban, Desert y Snow, `assets/Kathy_Sprites.png` y
-  `assets/Teleport_GBC.png` se dibujan sin reducir sus colores. El HUD y los
+- Los PNG se cargan sin aplicar el perfil de color incrustado y sin usar la
+  cache HTTP, para conservar los valores RGB del archivo tras cada edicion.
+  Al iniciar, el motor convierte los tiles a 2bpp: los fondos usan
+  `#7A953A`, `#55742A`, `#2A4E19` y `#0F380F`; los sprites usan tres
+  colores opacos y transparencia. El HUD y los
   nuevos iconos y explosiones utilizan el tileset Urban en todos los biomas;
   el escudo, la llave y la granada conservan los iconos anteriores de Desert.
   Los enemigos se dibujan desde
@@ -171,7 +202,7 @@ los numeros de Tiled 153–156 (IDs internos 152–155).
   gráficos de la galería, la selección de personaje y las fichas. Los nombres,
   estados, estadísticas y descripciones se dibujan según el personaje elegido.
 - Los textos usan `assets/font_8x8.png` (ancho proporcional): se componen en un
-  buffer propio de 32 tiles sueltos (ids 74-92 y 106-118) y se pintan como tiles.
+  buffer propio de 32 tiles en el banco 1 (ids 160-191) y se pintan como tiles.
 - Tiles compuestos: los items con transparencia (detectados por alfa en el tileset),
   los premios y las alertas (93 cofre, 126/127 cristal) se dibujan como un tile
   buffer (suelo + item) de un pool de 96 huecos (ids 160-255, filas 6-8), que se libera al desaparecer el item.

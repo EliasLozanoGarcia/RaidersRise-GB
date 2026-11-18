@@ -47,7 +47,8 @@ function setup() {
     drawHudNumber = (ctx, value, x, y, width) => calls.push({ kind: "number", value, x, y, width });
     drawText = (ctx, text, x, y) => calls.push({ kind: "text", text, x, y });
     const ctx = { fillRect() {} };
-    const bar = () => calls.filter(c => c.y === 128 && c.x >= 40 && c.x <= 80);
+    const bar = () => Array.from({ length: 6 }, (_, i) =>
+      calls.filter(c => c.y === 128 && c.x === 40 + i * 8).pop());
   `, context);
   return (code) => vm.runInContext(code, context);
 }

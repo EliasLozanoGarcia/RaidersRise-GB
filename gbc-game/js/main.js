@@ -198,11 +198,7 @@ function updateBullets() {
 }
 
 // ------------------------------------------------------------ Inicializacion
-// Hojas de sprites con version "golpeada" (flash al recibir dano). true = aclarar en vez de invertir la rampa de verdes.
-// Al anadir un personaje nuevo, anade aqui su imagen (la clave es la de assets).
-const HIT_SPRITES = {
-  playerImage: false, kurtImage: true, skreekImage: true,
-};
+const HIT_SPRITES = ["playerImage", "kurtImage", "skreekImage"];
 const ENEMY_HIT_SPRITES = ["enemyImage", "bigSlugImage", "beeImage"];
 
 async function start() {
@@ -215,7 +211,7 @@ async function start() {
   initAboutQr();
   initComposites();
   initEnemyFrameBottoms();
-  for (const [key, brighten] of Object.entries(HIT_SPRITES)) hitImages[key] = makeHitImage(assets[key], brighten);
+  for (const key of HIT_SPRITES) hitImages[key] = makeHitImage(assets[key]);
   Object.assign(hitImages, makeEnemyHitImages(Object.fromEntries(ENEMY_HIT_SPRITES.map((key) => [key, assets[key]]))));
   gbc.ctx.imageSmoothingEnabled = false;
   resetGame(); // carga el primer nivel (useLayout) y deja todo listo

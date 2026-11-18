@@ -49,6 +49,8 @@
       // Paletas RGB555
       this.bgPal = new Uint16Array(32);
       this.objPal = new Uint16Array(32);
+      this.bgPalRgb = new Array(32).fill(null);
+      this.objPalRgb = new Array(32).fill(null);
 
       // Registros
       this.scx = 0;
@@ -71,8 +73,25 @@
     loadTiles(bank, firstId, tiles) {
       for (let i = 0; i < tiles.length; i++) this.vram[bank].set(tiles[i], (firstId + i) * 16);
     }
-    setBgPalette(n, colors) { for (let i = 0; i < 4; i++) this.bgPal[n * 4 + i] = colors[i]; }
-    setObjPalette(n, colors) { for (let i = 0; i < 4; i++) this.objPal[n * 4 + i] = colors[i]; }
+    _rgbToPixel(rgb) {
+      return ((0xff000000 | ((rgb & 255) << 16) | (rgb & 0xff00) | (rgb >> 16)) >>> 0);
+    }
+    setBgPalette(n, colors, exactColors = null) {
+      for (let i = 0; i < 4; i++) {
+        const p = n * 4 + i;
+        this.bgPal[p] = colors[i];
+        this.bgPalRgb[p] = exactColors ? this._rgbToPixel(exactColors[i]) : null;
+      }
+    }
+    setObjPalette(n, colors, exactColors = null) {
+      for (let i = 0; i < 4; i++) {
+        const p = n * 4 + i;
+        this.objPal[p] = colors[i];
+        this.objPalRgb[p] = exactColors && exactColors[i] !== null
+          ? this._rgbToPixel(exactColors[i])
+          : null;
+      }
+    }
 
     clearOam() { this.oam.fill(0); }
     setSprite(i, x, y, tile, attr) {
@@ -125,7 +144,8 @@
         const ci = (((v[base + 1] >> bit) & 1) << 1) | ((v[base] >> bit) & 1);
         bgIdx[x] = ci;
         bgPrio[x] = (attr & 0x80) ? 1 : 0;
-        fb[off + x] = lut[bgPal[(attr & 7) * 4 + ci]];
+        const palIndex = (attr & 7) * 4 + ci;
+        fb[off + x] = this.bgPalRgb[palIndex] === null ? lut[bgPal[palIndex]] : this.bgPalRgb[palIndex];
       }
       if (usedWin) this._winLine++;
 
@@ -168,7 +188,8 @@
           const ci = (((hi >> bit) & 1) << 1) | ((lo >> bit) & 1);
           if (ci === 0) continue;
           if (this.lcdc.bgPriority && bgIdx[x] !== 0 && ((attr & 0x80) || bgPrio[x])) continue;
-          fb[off + x] = lut[objPal[pal + ci]];
+          const palIndex = pal + ci;
+          fb[off + x] = this.objPalRgb[palIndex] === null ? lut[objPal[palIndex]] : this.objPalRgb[palIndex];
         }
       }
     }

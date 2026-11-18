@@ -1,6 +1,5 @@
 window.DMGLoader = (function () {
   "use strict";
-
   async function loadMapCSV(url) {
     const response = await fetch(url);
     if (!response.ok) {
@@ -53,13 +52,15 @@ window.DMGLoader = (function () {
     return { w, h, data, attrs };
   }
 
-  function loadImage(imageSrc) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error(`No se pudo cargar la imagen ${imageSrc}`));
-      img.src = imageSrc;
-    });
+  async function loadImage(imageSrc) {
+    const response = await fetch(imageSrc, { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status} al cargar la imagen ${imageSrc}`);
+    const blob = await response.blob();
+    try {
+      return await createImageBitmap(blob, { colorSpaceConversion: "none" });
+    } catch (error) {
+      throw new Error(`No se pudo decodificar la imagen ${imageSrc}: ${error.message}`);
+    }
   }
 
   return {

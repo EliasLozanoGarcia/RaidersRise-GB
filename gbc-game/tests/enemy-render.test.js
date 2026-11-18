@@ -122,6 +122,19 @@ test("los enemigos heridos usan sus sprites aclarados y recuperan los originales
   }
 });
 
+test("la imagen de un personaje golpeado aclara los cuatro tonos y conserva transparencia", () => {
+  const run = setup();
+  const pixels = run(`
+    const source = { width: 5, height: 1, pixels: new Uint8ClampedArray([
+      122,149,58,255, 85,116,42,255, 42,78,25,255, 15,56,15,255, 15,56,15,0
+    ]) };
+    makeHitImage(source).pixels
+  `);
+  assert.deepEqual(Array.from(pixels), [
+    122,149,58,255, 122,149,58,255, 85,116,42,255, 42,78,25,255, 15,56,15,0
+  ]);
+});
+
 test("al morir muestra un unico efecto de 8x8 centrado en la posicion visual", () => {
   const run = setup();
   run(`

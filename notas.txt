@@ -28,3 +28,9 @@ Mejorar menus:
  1.Granada se lanza cada X tiempo.
  2.Invulneravilidad al quedarte con 1 corazon.
 
+
+Índice	Color         	RGB	      Hex
+0	Verde claro	122, 149, 58   #7A953A
+1	Verde medio	85, 116, 42     #55742A
+2	Verde oscuro	42, 78, 25	     #2A4E19
+3	Verde muy oscuro	15, 56, 15	     #0F380F
