@@ -36,8 +36,16 @@ function syncMapCell(idx) {
   const itemTile = itemsLayer[idx];
   const hasItem = itemTile >= 0;
   const tileId = hasItem ? itemTile : fondoLayer[idx];
-  gbc.mapTile[0][idx] = tileId >= 0 ? tileId : 0;
-  gbc.mapAttr[0][idx] = hasItem ? itemsAttrs[idx] : fondoAttrs[idx];
+  if (gbc && gbc.mapTile) {
+    gbc.mapTile[0][idx] = tileId >= 0 ? tileId : 0;
+    gbc.mapAttr[0][idx] = hasItem ? itemsAttrs[idx] : fondoAttrs[idx];
+    const tx = idx % MAP_W, ty = (idx / MAP_W) | 0;
+    const mi = ty * 32 + tx;
+    if (mi < 1024) {
+      gbc.mapTile[0][mi] = tileId >= 0 ? tileId : 0;
+      gbc.mapAttr[0][mi] = hasItem ? itemsAttrs[idx] : fondoAttrs[idx];
+    }
+  }
 }
 
 function setItemTile(idx, gid, attr = 0) {
@@ -164,6 +172,7 @@ function resetComposites() {
   compFree.length = 0;
   for (let i = COMP_SLOTS - 1; i >= 0; i--) compFree.push(i);
   for (let idx = 0; idx < itemsLayer.length; idx++) if (needsComposite(itemsLayer[idx]) || fondoClear(idx)) setComposite(idx, 0);
+  if (typeof syncAllCompositesToVram === "function") syncAllCompositesToVram();
 }
 
 function drawTileInto(c, id, attr, ox, oy, image = assets.tilesetImage) {
@@ -213,6 +222,7 @@ function setComposite(idx, dy, noItem = false) {
   }
   if (!noItem && itemsLayer[idx] >= 0) drawItemInto(compCtx, itemsLayer[idx], itemsAttrs[idx], x, dy);
   compCtx.restore();
+  if (typeof updateCompositeVram === "function") updateCompositeVram(slot);
   return true;
 }
 

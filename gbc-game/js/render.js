@@ -94,8 +94,236 @@ function makeLuckyHitImage(img) {
   return canvas;
 }
 
+// ------------------------------------------------------------ Paletas y utilidades GBC (RGB555)
+const hasGBC = () => typeof gbc !== "undefined" && gbc;
+const hasGBCPPU = () => typeof gbc !== "undefined" && gbc && gbc.renderFrame && gbc.vram;
+
+const toRGB555 = (r, g, b) => ((r >> 3) & 31) | (((g >> 3) & 31) << 5) | (((b >> 3) & 31) << 10);
+const RGB_G0 = toRGB555(122, 149, 58); // #7a953a - tono mas claro
+const RGB_G1 = toRGB555(85, 116, 42);  // #55742a - tono medio claro
+const RGB_G2 = toRGB555(42, 78, 25);   // #2a4e19 - tono medio oscuro
+const RGB_G3 = toRGB555(15, 56, 15);   // #0f380f - tono mas oscuro
+const RGB_WHITE = 0x7fff;
+const RGB_BLACK = 0;
+
+function setupGBCPalettes() {
+  if (!hasGBC() || !gbc.setBgPalette) return;
+  // Paletas de fondo (0-7): 4 colores RGB555
+  gbc.setBgPalette(0, [RGB_G0, RGB_G1, RGB_G2, RGB_G3]); // 0: Fondo normal
+  gbc.setBgPalette(1, [RGB_WHITE, RGB_G0, RGB_G1, RGB_G2]); // 1: Fondo golpeado / flash
+  gbc.setBgPalette(2, [RGB_G3, RGB_G2, RGB_G1, RGB_G0]); // 2: Fondo HUD / bordes
+  gbc.setBgPalette(3, [RGB_G3, RGB_G0, RGB_G1, RGB_WHITE]); // 3: HUD digitos / iconos
+  gbc.setBgPalette(4, [RGB_G0, RGB_G1, RGB_G2, RGB_WHITE]); // 4: Especial / explosiones
+  gbc.setBgPalette(5, [RGB_G0, RGB_G1, RGB_G2, RGB_G3]);
+  gbc.setBgPalette(6, [RGB_G0, RGB_G1, RGB_G2, RGB_G3]);
+  gbc.setBgPalette(7, [RGB_G0, RGB_G1, RGB_G2, RGB_G3]);
+
+  // Paletas de sprites (0-7): color 0 es transparente
+  gbc.setObjPalette(0, [0, RGB_G0, RGB_G1, RGB_G3]); // 0: Jugador 1 / pickups
+  gbc.setObjPalette(1, [0, RGB_WHITE, RGB_G0, RGB_G1]); // 1: Jugador flash golpe
+  gbc.setObjPalette(2, [0, RGB_WHITE, RGB_G3, RGB_G1]); // 2: Balas / haz
+  gbc.setObjPalette(3, [0, RGB_G0, RGB_G2, RGB_G3]); // 3: Jugador 2
+  gbc.setObjPalette(4, [0, RGB_G0, RGB_G1, RGB_G3]); // 4: Enemigos normal
+  gbc.setObjPalette(5, [0, RGB_WHITE, RGB_G0, RGB_G1]); // 5: Enemigos flash golpe
+  gbc.setObjPalette(6, [0, RGB_G0, RGB_WHITE, RGB_G3]); // 6: Muerte VFX / recarga
+  gbc.setObjPalette(7, [0, RGB_G0, RGB_G1, RGB_G2]); // 7: Teletransporte
+}
+
+// ------------------------------------------------------------ Conversion de graficos a 2bpp VRAM (16 bytes por tile 8x8)
+function convert8x8To2bpp(pixels, width, sx, sy, isSprite = false) {
+  const bytes = new Uint8Array(16);
+  for (let y = 0; y < 8; y++) {
+    let lo = 0, hi = 0;
+    for (let x = 0; x < 8; x++) {
+      const idx = ((sy + y) * width + (sx + x)) * 4;
+      const r = pixels[idx], g = pixels[idx + 1], b = pixels[idx + 2], a = pixels[idx + 3];
+      let ci;
+      if (isSprite) {
+        if (a < 64) ci = 0;
+        else {
+          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+          if (lum > 130) ci = 1;
+          else if (lum > 65) ci = 2;
+          else ci = 3;
+        }
+      } else {
+        if (a < 64) ci = 0;
+        else {
+          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+          if (lum > 140) ci = 0;
+          else if (lum > 90) ci = 1;
+          else if (lum > 45) ci = 2;
+          else ci = 3;
+        }
+      }
+      lo |= (ci & 1) << (7 - x);
+      hi |= ((ci >> 1) & 1) << (7 - x);
+    }
+    bytes[y * 2] = lo;
+    bytes[y * 2 + 1] = hi;
+  }
+  return bytes;
+}
+
+const imagePixelCache = new WeakMap();
+function getImagePixels(img) {
+  if (!img) return null;
+  if (img.pixels && img.width && img.height) return { pixels: img.pixels, width: img.width, height: img.height };
+  if (imagePixelCache.has(img)) return imagePixelCache.get(img);
+  try {
+    const cv = document.createElement("canvas");
+    cv.width = img.width || 8;
+    cv.height = img.height || 8;
+    const ctx = cv.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+    const data = ctx.getImageData(0, 0, cv.width, cv.height);
+    const res = { pixels: data.data, width: cv.width, height: cv.height };
+    imagePixelCache.set(img, res);
+    return res;
+  } catch (e) {
+    return null;
+  }
+}
+
+let currentLoadedTileset = null;
+function ensureTilesetLoaded() {
+  if (!hasGBC() || !gbc.vram) return;
+  const ts = assets && assets.tilesetImage;
+  if (ts && ts !== currentLoadedTileset) {
+    loadTilesetToVram(ts, 0, 0);
+    currentLoadedTileset = ts;
+  }
+}
+
+function loadTilesetToVram(img, bank = 0, startId = 0) {
+  if (!hasGBC() || !gbc.vram || !img) return;
+  const pObj = getImagePixels(img);
+  if (!pObj) return;
+  const cols = pObj.width >> 3, rows = pObj.height >> 3;
+  const count = cols * rows;
+  const vram = gbc.vram[bank];
+  for (let i = 0; i < count && (startId + i) < 256; i++) {
+    const sx = (i % cols) * 8, sy = Math.floor(i / cols) * 8;
+    const bytes = convert8x8To2bpp(pObj.pixels, pObj.width, sx, sy, bank === 1);
+    vram.set(bytes, (startId + i) * 16);
+  }
+}
+
+function updateCompositeVram(slot) {
+  if (!hasGBC() || !gbc.vram || !compCv) return;
+  const pObj = getImagePixels(compCv);
+  if (!pObj) return;
+  const bytes = convert8x8To2bpp(pObj.pixels, pObj.width, slot * 8, 0, false);
+  gbc.vram[0].set(bytes, (160 + slot) * 16);
+}
+
+function syncAllCompositesToVram() {
+  if (!hasGBC() || !gbc.vram || !compCv) return;
+  for (let s = 0; s < COMP_SLOTS; s++) updateCompositeVram(s);
+}
+
+function updateTextBufferVram() {
+  if (!hasGBC() || !gbc.vram || !assets.textBuffer) return;
+  const pObj = getImagePixels(assets.textBuffer);
+  if (!pObj) return;
+  for (let i = 0; i < TEXT_TILES; i++) {
+    const bytes = convert8x8To2bpp(pObj.pixels, pObj.width, i * 8, 0, false);
+    gbc.vram[0].set(bytes, TEXT_IDS[i] * 16);
+  }
+}
+
+const spriteTileCache = new Map();
+function getOrCreateSpriteTile(img, sx, sy) {
+  if (!img) return null;
+  const key = `${img.src || img.name || "img"}:${sx},${sy}`;
+  if (spriteTileCache.has(key)) return spriteTileCache.get(key);
+  const pObj = getImagePixels(img);
+  if (!pObj) return null;
+  const bytes = convert8x8To2bpp(pObj.pixels, pObj.width, sx, sy, true);
+  spriteTileCache.set(key, bytes);
+  return bytes;
+}
+
+let fixedSpritesInitialized = false;
+function initFixedSpritesVram() {
+  if (!hasGBC() || !gbc.vram || fixedSpritesInitialized) return;
+  fixedSpritesInitialized = true;
+
+  // Tile 10: bala pequena (punto centrado)
+  const dot = new Uint8Array(16);
+  for (let y = 2; y <= 5; y++) {
+    dot[y * 2] = 0x3c;
+    dot[y * 2 + 1] = 0x3c;
+  }
+  gbc.vram[1].set(dot, 10 * 16);
+
+  // Tile 11: bala haz
+  const beam = new Uint8Array(16);
+  beam.fill(0xff);
+  for (let y = 2; y <= 5; y++) beam[y * 2] = 0xc3;
+  gbc.vram[1].set(beam, 11 * 16);
+
+  // Tile 15: tajo espada
+  const slash = new Uint8Array(16);
+  slash.fill(0xff);
+  gbc.vram[1].set(slash, 15 * 16);
+
+  // Tile 8: recarga
+  if (assets && assets.reloadImage) {
+    const rObj = getImagePixels(assets.reloadImage);
+    if (rObj) gbc.vram[1].set(convert8x8To2bpp(rObj.pixels, 8, 0, 0, true), 8 * 16);
+  }
+
+  // Tile 9: muerte enemigo
+  if (assets && assets.enemyDeathImage) {
+    const dObj = getImagePixels(assets.enemyDeathImage);
+    if (dObj) gbc.vram[1].set(convert8x8To2bpp(dObj.pixels, 8, 0, 0, true), 9 * 16);
+  }
+
+  // Tiles 12, 13, 14: fotogramas disparo
+  const shotImg = assets && (assets.shotSmallImage || assets.shotBigImage);
+  if (shotImg) {
+    const sObj = getImagePixels(shotImg);
+    if (sObj) {
+      const frames = sObj.width >= 12 ? 3 : 1;
+      const fw = (sObj.width / frames) | 0;
+      for (let f = 0; f < frames && f < 3; f++) {
+        gbc.vram[1].set(convert8x8To2bpp(sObj.pixels, sObj.width, f * fw, 0, true), (12 + f) * 16);
+      }
+    }
+  }
+
+  // Tiles 16..47: teletransporte animado (8 fotogramas x 4 tiles de 8x8)
+  if (assets && assets.teleportImage) {
+    const tpObj = getImagePixels(assets.teleportImage);
+    if (tpObj) {
+      for (let f = 0; f < 8; f++) {
+        const sx = f * 16;
+        const tl = convert8x8To2bpp(tpObj.pixels, tpObj.width, sx, 0, true);
+        const tr = convert8x8To2bpp(tpObj.pixels, tpObj.width, sx + 8, 0, true);
+        const bl = convert8x8To2bpp(tpObj.pixels, tpObj.width, sx, 8, true);
+        const br = convert8x8To2bpp(tpObj.pixels, tpObj.width, sx + 8, 8, true);
+        const base = 16 + f * 4;
+        gbc.vram[1].set(tl, base * 16);
+        gbc.vram[1].set(tr, (base + 1) * 16);
+        gbc.vram[1].set(bl, (base + 2) * 16);
+        gbc.vram[1].set(br, (base + 3) * 16);
+      }
+    }
+  }
+}
+
 function drawMapTile(ctx, tx, ty, tileId, attr, hit = false, dy = 0, dx = 0, hitImage = null, normalImage = null) {
   if (tileId < 0) return;
+  if (hasGBCPPU() && gbc.mapTile) {
+    const mi = ty * 32 + tx;
+    if (mi >= 0 && mi < 1024) {
+      gbc.mapTile[0][mi] = tileId;
+      const flags = attr || 0;
+      gbc.mapAttr[0][mi] = (flags & ~7) | (hit ? 1 : (flags & 7));
+    }
+    return;
+  }
   const screenX = tx * 8 - cam.x + dx;
   const screenY = ty * 8 - cam.y + dy;
   const sourceX = (tileId % 32) * 8;
@@ -113,6 +341,10 @@ function drawMapTile(ctx, tx, ty, tileId, attr, hit = false, dy = 0, dx = 0, hit
 }
 
 function drawSpecialTile(ctx, cell, id, attr, hit = false, hitImage = null, floorImage = assets.tilesetImage) {
+  if (hasGBCPPU() && gbc.mapTile) {
+    drawMapTile(ctx, cell.tx, cell.ty, id, attr, hit, 0, 0, null, floorImage);
+    return;
+  }
   const idx = cell.ty * MAP_W + cell.tx;
   const parts = specialFreeParts(cell.tx, cell.ty);
   if (!parts.length) return;
@@ -223,6 +455,7 @@ function drawText(ctx, str, x, y) {
       if (pen >= TEXT_TILES * 8) break;
     }
     lastText = s;
+    updateTextBufferVram();
   }
   const tiles = Math.min(TEXT_TILES, Math.ceil(w / 8));
   for (let i = 0; i < tiles; i++) drawGlyph(ctx, TEXT_IDS[i], x + i * 8, y);
@@ -306,6 +539,19 @@ function drawGameOver(ctx) {
 }
 
 function drawGlyph(ctx, id, x, y) {
+  if (hasGBCPPU() && gbc.mapTile) {
+    const isHud = y >= VIEW_H;
+    const isOverlay = gameOver || shop || paused;
+    const map = (isHud || isOverlay) ? 1 : 0;
+    const r = isHud ? (y - VIEW_H) >> 3 : y >> 3;
+    const c = x >> 3;
+    if (r >= 0 && r < 32 && c >= 0 && c < 32) {
+      const mi = r * 32 + c;
+      gbc.mapTile[map][mi] = id;
+      gbc.mapAttr[map][mi] = 3;
+    }
+    return;
+  }
   if (TEXT_SLOT.has(id)) ctx.drawImage(assets.textBuffer, TEXT_SLOT.get(id) * 8, 0, 8, 8, x, y, 8, 8);
   else {
     const pickup = id === PICKUP.heart || id === PICKUP.coin || id === PICKUP.mana || id === PICKUP.crystal;
@@ -315,6 +561,7 @@ function drawGlyph(ctx, id, x, y) {
 }
 
 let hudBarHalf, hudBarFull, hudBarEndHalf, hudBarLoopHalf, hudBarLoopFull, hudTop;
+const HUD_IMAGE_TILES = new Map();
 
 function initHud() {
   const atlas = assets.biomeTilesets[0];
@@ -361,9 +608,32 @@ function initHud() {
   const topCtx = hudTop.getContext("2d");
   for (let x = 0; x < 8; x++)
     topCtx.drawImage(atlas, (142 % 32) * 8 + 7, (142 >> 5) * 8, 1, 8, x, 0, 1, 8);
+
+  HUD_IMAGE_TILES.set(hudTop, 240);
+  HUD_IMAGE_TILES.set(hudBarHalf, 241);
+  HUD_IMAGE_TILES.set(hudBarFull, 242);
+  HUD_IMAGE_TILES.set(hudBarEndHalf, 243);
+  HUD_IMAGE_TILES.set(hudBarLoopHalf, 244);
+  HUD_IMAGE_TILES.set(hudBarLoopFull, 245);
+  if (hasGBC() && gbc.vram) {
+    for (const [cv, tid] of HUD_IMAGE_TILES) {
+      const pObj = getImagePixels(cv);
+      if (pObj) gbc.vram[0].set(convert8x8To2bpp(pObj.pixels, 8, 0, 0, false), tid * 16);
+    }
+  }
 }
 
 function drawHudImage(ctx, image, sx, sy, x, y, attr = 0) {
+  if (hasGBCPPU() && gbc.mapTile) {
+    const tileId = HUD_IMAGE_TILES.get(image) || 140;
+    const c = x >> 3, r = (y - VIEW_H) >> 3;
+    if (r >= 0 && r < 3 && c >= 0 && c < 20) {
+      const mi = r * 32 + c;
+      gbc.mapTile[1][mi] = tileId;
+      gbc.mapAttr[1][mi] = attr | 2;
+    }
+    return;
+  }
   if (!attr) { ctx.drawImage(image, sx, sy, 8, 8, x, y, 8, 8); return; }
   ctx.save();
   ctx.translate(x + 4, y + 4);
@@ -373,12 +643,35 @@ function drawHudImage(ctx, image, sx, sy, x, y, attr = 0) {
 }
 
 function drawHudTile(ctx, id, x, y, attr = 0) {
+  if (hasGBCPPU() && gbc.mapTile) {
+    const c = x >> 3, r = (y - VIEW_H) >> 3;
+    if (r >= 0 && r < 3 && c >= 0 && c < 20) {
+      const mi = r * 32 + c;
+      gbc.mapTile[1][mi] = id;
+      gbc.mapAttr[1][mi] = attr | 2;
+    }
+    return;
+  }
   drawHudImage(ctx, assets.biomeTilesets[0], (id % 32) * 8, (id >> 5) * 8, x, y, attr);
 }
 
 function drawHudNumber(ctx, value, x, y, width) {
   const text = String(value);
   const scale = Math.min(1, width / (text.length * 8));
+  if (hasGBCPPU() && gbc.mapTile) {
+    const cStart = (x + width - text.length * 8 * scale) >> 3;
+    const r = (y - VIEW_H) >> 3;
+    for (let i = 0; i < text.length; i++) {
+      const d = Number(text[i]);
+      const tileId = GLYPH_DIGIT0 + (d === 0 ? 10 : d);
+      const mi = r * 32 + (cStart + i);
+      if (mi >= 0 && mi < 1024) {
+        gbc.mapTile[1][mi] = tileId;
+        gbc.mapAttr[1][mi] = 3;
+      }
+    }
+    return;
+  }
   ctx.save();
   ctx.translate(x + width - text.length * 8 * scale, y);
   ctx.scale(scale, 1);
@@ -391,8 +684,10 @@ function drawHudNumber(ctx, value, x, y, width) {
 
 function drawHud(ctx) {
   const top = VIEW_H;
-  ctx.fillStyle = "#0f380f";
-  ctx.fillRect(0, top, GBC_W, HUD_H);
+  if (!hasGBCPPU()) {
+    ctx.fillStyle = "#0f380f";
+    ctx.fillRect(0, top, GBC_W, HUD_H);
+  }
   for (let x = 1; x < 19; x++) {
     drawHudImage(ctx, hudTop, 0, 0, x * 8, top);
     drawHudTile(ctx, 149, x * 8, top + 16);
@@ -478,19 +773,342 @@ function enemySpriteFrame(e) {
   return { sx, sy, bottom };
 }
 
-// ------------------------------------------------------------ Renderizado a color original
+// ------------------------------------------------------------ Renderizado
 function render() {
-  const ctx = gbc.ctx;
+  const ctx = hasGBC() ? gbc.ctx : null;
+  if (screen !== "game") {
+    if (ctx) {
+      ctx.clearRect(0, 0, GBC_W, GBC_H);
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, GBC_W, GBC_H);
+      const draw = { splash: drawSplash, raiders: drawRoster, sheet: drawSheet, settings: drawSettings, about: drawAbout }[screen] || drawSelect;
+      draw(ctx);
+    }
+    const infoEl = document.getElementById("info");
+    if (infoEl) {
+      infoEl.textContent = tr({ splash: "hintSplash", raiders: "hintRaiders", sheet: "hintSheet", settings: "hintSettings", about: "hintAbout" }[screen] || (multiplayer ? "hintSelectMulti" : "hintSelectSingle"));
+    }
+    return;
+  }
+
+  if (hasGBCPPU()) {
+    renderGBC();
+    return;
+  }
+
+  renderFallback(ctx);
+}
+
+function renderGBC() {
+  setupGBCPalettes();
+  ensureTilesetLoaded();
+  initFixedSpritesVram();
+
+  const shakeX = wallShake > 0 ? (wallShake & 1 ? -1 : 1) : 0;
+  gbc.scx = (cam.x - shakeX) & 255;
+  gbc.scy = cam.y & 255;
+
+  gbc.clearOam();
+  let oamIdx = 0;
+
+  const hitCells = new Set();
+  for (const b of luckyBoxes) {
+    if (!b.alive || !(b.hit > 0)) continue;
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 2; c++) hitCells.add((b.ty + r) * MAP_W + b.tx + c);
+  }
+  const flashed = (idx) => hitCells.has(idx) || barrierHit.has(idx) || blasts.has(idx);
+
+  // 1. Capa de fondo y items en gbc.mapTile[0] / gbc.mapAttr[0]
+  const specialCellMap = new Map();
+  for (const p of players) {
+    if (!p.active || p.hp <= 0 || !p.sp) continue;
+    const aiming = p.sp.state === "aim";
+    if (!aiming && (p.sp.state !== "active" || p.sp.instant)) continue;
+    const explosionId = 156 + Math.floor(p.sp.t / CFG.specialExplosionFrameTicks) % 4;
+    for (const cell of specialMarkerCells(p.sp)) {
+      specialCellMap.set(cell.ty * MAP_W + cell.tx, { id: aiming ? cell.id : explosionId, attr: aiming ? cell.attr : 0 });
+    }
+  }
+  for (const effect of specialExplosions) {
+    const id = 156 + Math.floor(effect.age / CFG.specialExplosionFrameTicks);
+    for (const cell of effect.cells) {
+      if (specialFloor(cell.tx, cell.ty)) {
+        specialCellMap.set(cell.ty * MAP_W + cell.tx, { id, attr: 0 });
+      }
+    }
+  }
+
+  for (let ty = 0; ty < MAP_H; ty++) {
+    for (let tx = 0; tx < MAP_W; tx++) {
+      const idx = ty * MAP_W + tx;
+      const mi = ty * 32 + tx;
+      const isFlashed = flashed(idx);
+      const spec = specialCellMap.get(idx);
+
+      let tid, attr;
+      if (spec) {
+        tid = spec.id;
+        attr = spec.attr || 0;
+      } else if (compSlot.has(idx) && !isFlashed) {
+        tid = 160 + compSlot.get(idx);
+        attr = 0;
+      } else if (itemsLayer[idx] >= 0 && !coinWaiting(idx)) {
+        tid = itemsLayer[idx];
+        attr = itemsAttrs[idx] || 0;
+      } else {
+        tid = fondoClear(idx) ? baseFloor(idx) : fondoLayer[idx];
+        attr = fondoAttrs[idx] || 0;
+      }
+
+      const pal = isFlashed ? 1 : (attr & 7);
+      gbc.mapTile[0][mi] = tid >= 0 ? tid : 0;
+      gbc.mapAttr[0][mi] = (attr & ~7) | pal;
+    }
+  }
+
+  // 2. Teleport effects (under player)
+  for (const effect of teleportEffects) {
+    if (effect.overPlayer) continue;
+    const spriteFrame = Math.min(7, effect.age >> 1);
+    const tx = effect.x - cam.x + shakeX;
+    const ty = effect.y - cam.y;
+    const base = 16 + spriteFrame * 4;
+    if (oamIdx <= 36) {
+      gbc.setSprite(oamIdx++, tx, ty, base + 0, 0x08 | 7);
+      gbc.setSprite(oamIdx++, tx + 8, ty, base + 1, 0x08 | 7);
+      gbc.setSprite(oamIdx++, tx, ty + 8, base + 2, 0x08 | 7);
+      gbc.setSprite(oamIdx++, tx + 8, ty + 8, base + 3, 0x08 | 7);
+    }
+  }
+
+  // 3. Players
+  for (const p of players) {
+    if (!p.active || p.hp <= 0) continue;
+    if (p.inv > 0 && !(p.hit > 0) && ((frame >> 2) & 1)) continue;
+    const px = (p.x >> 8) - cam.x + shakeX;
+    const py = (p.y >> 8) - cam.y;
+    if (p.tp && p.tp.step === 1) continue;
+    const spriteColumn = p.pushAnim ? 8 : p.facing;
+    const sheet = assets[p.ch.img];
+    const baseTile = p.id === 0 ? 0 : 4;
+    if (sheet) {
+      const tl = getOrCreateSpriteTile(sheet, spriteColumn * 16, p.row * 16);
+      const tr = getOrCreateSpriteTile(sheet, spriteColumn * 16 + 8, p.row * 16);
+      const bl = getOrCreateSpriteTile(sheet, spriteColumn * 16, p.row * 16 + 8);
+      const br = getOrCreateSpriteTile(sheet, spriteColumn * 16 + 8, p.row * 16 + 8);
+      if (tl) gbc.vram[1].set(tl, baseTile * 16);
+      if (tr) gbc.vram[1].set(tr, (baseTile + 1) * 16);
+      if (bl) gbc.vram[1].set(bl, (baseTile + 2) * 16);
+      if (br) gbc.vram[1].set(br, (baseTile + 3) * 16);
+    }
+    let attr = 0x08;
+    if (p.hit > 0) attr |= 1;
+    else attr |= (p.id === 0 ? 0 : 3);
+
+    if (p.pushAnim === "left") {
+      attr |= 0x20;
+      if (oamIdx <= 36) {
+        gbc.setSprite(oamIdx++, px + 8, py, baseTile + 0, attr);
+        gbc.setSprite(oamIdx++, px, py, baseTile + 1, attr);
+        gbc.setSprite(oamIdx++, px + 8, py + 8, baseTile + 2, attr);
+        gbc.setSprite(oamIdx++, px, py + 8, baseTile + 3, attr);
+      }
+    } else {
+      if (oamIdx <= 36) {
+        gbc.setSprite(oamIdx++, px, py, baseTile + 0, attr);
+        gbc.setSprite(oamIdx++, px + 8, py, baseTile + 1, attr);
+        gbc.setSprite(oamIdx++, px, py + 8, baseTile + 2, attr);
+        gbc.setSprite(oamIdx++, px + 8, py + 8, baseTile + 3, attr);
+      }
+    }
+  }
+
+  // 4. Teleport effects (over player)
+  for (const effect of teleportEffects) {
+    if (!effect.overPlayer) continue;
+    const spriteFrame = Math.min(7, effect.age >> 1);
+    const tx = effect.x - cam.x + shakeX;
+    const ty = effect.y - cam.y;
+    const base = 16 + spriteFrame * 4;
+    if (oamIdx <= 36) {
+      gbc.setSprite(oamIdx++, tx, ty, base + 0, 0x08 | 7);
+      gbc.setSprite(oamIdx++, tx + 8, ty, base + 1, 0x08 | 7);
+      gbc.setSprite(oamIdx++, tx, ty + 8, base + 2, 0x08 | 7);
+      gbc.setSprite(oamIdx++, tx + 8, ty + 8, base + 3, 0x08 | 7);
+    }
+  }
+
+  // 5. Slash
+  for (const p of players) {
+    if (!p.active || !(p.slash > 0) || !p.slashRect) continue;
+    const r = p.slashRect;
+    const sx = r.x - cam.x + shakeX;
+    const sy = r.y - cam.y;
+    if (oamIdx < 40) gbc.setSprite(oamIdx++, sx, sy, 15, 0x08 | 2);
+  }
+
+  // 6. Bullets
+  for (const b of bullets) {
+    const bx = (b.x >> 8) - cam.x + shakeX;
+    const by = (b.y >> 8) - cam.y;
+    if (oamIdx >= 40) break;
+    if (b.beam) {
+      gbc.setSprite(oamIdx++, bx - 4, by - 4, 11, 0x08 | 2);
+    } else if (b.img && assets[b.img]) {
+      const fIdx = (b.bulletFrame ?? 2);
+      const attr = 0x08 | 2 | (b.mirror ? 0x20 : 0);
+      gbc.setSprite(oamIdx++, bx - 4, by - 4, 12 + fIdx, attr);
+    } else {
+      gbc.setSprite(oamIdx++, bx - 4, by - 4, 10, 0x08 | 2);
+    }
+  }
+
+  // 7. Enemies (culling + sorting)
+  if (selFrame !== frame) {
+    selFrame = frame;
+    const live = players.filter((p) => p.active && p.hp > 0);
+    const cand = [];
+    for (const e of enemies) {
+      const px = (e.x >> 8) - cam.x + shakeX, py = enemySpriteY(e);
+      e.vis = false;
+      if (px + e.size <= 0 || px >= GBC_W || py + e.size <= 0 || py >= VIEW_H) { e.hid = 0; continue; }
+      let d = Infinity;
+      for (const p of live) d = Math.min(d, ((p.x >> 8) - (e.x >> 8)) ** 2 + ((p.y >> 8) - (e.y >> 8)) ** 2);
+      e.dist = d;
+      cand.push(e);
+    }
+    const rank = (e) => (e.hid >= 2 ? 0 : e.hid === 1 ? 1 : 2);
+    cand.sort((a, b) => rank(a) - rank(b) || a.dist - b.dist);
+    const lineCount = new Map();
+    let spriteCount = 0;
+    for (const e of cand) {
+      const py = enemySpriteY(e);
+      const cells = e.size >> 3;
+      let ok = spriteCount + cells * cells <= CFG.maxSprites;
+      for (let r = 0; r < cells && ok; r++) ok = (lineCount.get((py >> 3) + r) || 0) + cells <= CFG.maxSpritesPerLine;
+      if (ok) {
+        spriteCount += cells * cells;
+        for (let r = 0; r < cells; r++) lineCount.set((py >> 3) + r, (lineCount.get((py >> 3) + r) || 0) + cells);
+        e.vis = true;
+        e.hid = 0;
+      } else {
+        e.hid = (e.hid || 0) + 1;
+      }
+    }
+  }
+  const visibleEnemies = [];
+  for (const e of enemies) {
+    if (!e.vis) continue;
+    const sprite = enemySpriteFrame(e);
+    if (sprite.bottom < 0) continue;
+    visibleEnemies.push({ e, sprite, y: enemySpriteY(e) });
+  }
+  visibleEnemies.sort((a, b) => a.y + a.sprite.bottom - b.y - b.sprite.bottom);
+
+  let enemyTileCursor = 64;
+  for (const { e, sprite, y } of visibleEnemies) {
+    const ex = (e.x >> 8) - cam.x + shakeX;
+    const ey = y;
+    const img = assets[e.sprite];
+    const attr = 0x08 | (e.hit > 0 ? 5 : 4);
+    if (e.size === 8) {
+      if (oamIdx < 40 && enemyTileCursor < 256) {
+        const tid = enemyTileCursor++;
+        const bytes = getOrCreateSpriteTile(img, sprite.sx, sprite.sy);
+        if (bytes) gbc.vram[1].set(bytes, tid * 16);
+        gbc.setSprite(oamIdx++, ex, ey, tid, attr);
+      }
+    } else if (e.size === 16) {
+      if (oamIdx <= 36 && enemyTileCursor <= 252) {
+        const tid = enemyTileCursor;
+        enemyTileCursor += 4;
+        const tl = getOrCreateSpriteTile(img, sprite.sx, sprite.sy);
+        const tr = getOrCreateSpriteTile(img, sprite.sx + 8, sprite.sy);
+        const bl = getOrCreateSpriteTile(img, sprite.sx, sprite.sy + 8);
+        const br = getOrCreateSpriteTile(img, sprite.sx + 8, sprite.sy + 8);
+        if (tl) gbc.vram[1].set(tl, tid * 16);
+        if (tr) gbc.vram[1].set(tr, (tid + 1) * 16);
+        if (bl) gbc.vram[1].set(bl, (tid + 2) * 16);
+        if (br) gbc.vram[1].set(br, (tid + 3) * 16);
+        gbc.setSprite(oamIdx++, ex, ey, tid + 0, attr);
+        gbc.setSprite(oamIdx++, ex + 8, ey, tid + 1, attr);
+        gbc.setSprite(oamIdx++, ex, ey + 8, tid + 2, attr);
+        gbc.setSprite(oamIdx++, ex + 8, ey + 8, tid + 3, attr);
+      }
+    }
+  }
+
+  // 8. Enemy death effects
+  for (const effect of enemyDeathEffects) {
+    const offset = (effect.size - 8) >> 1;
+    const dx = (effect.x >> 8) - cam.x + shakeX + offset;
+    const dy = enemySpriteY(effect) + offset;
+    if (oamIdx < 40) gbc.setSprite(oamIdx++, dx, dy, 9, 0x08 | 6);
+  }
+
+  // 9. Reload icon
+  if ((frame >> 3) & 1) {
+    for (const p of players) {
+      if (p.active && p.hp > 0 && p.reloadT > 0) {
+        const rx = (p.x >> 8) - cam.x + shakeX + 4;
+        const ry = (p.y >> 8) - cam.y - 8;
+        if (oamIdx < 40) gbc.setSprite(oamIdx++, rx, ry, 8, 0x08 | 6);
+      }
+    }
+  }
+
+  // 10. Window Layer (HUD / Overlays)
+  if (gameOver) {
+    gbc.lcdc.winOn = true;
+    gbc.wx = 7;
+    gbc.wy = 0;
+    gbc.mapTile[1].fill(49);
+    gbc.mapAttr[1].fill(2);
+    drawGameOver(gbc.ctx);
+  } else if (shop) {
+    gbc.lcdc.winOn = true;
+    gbc.wx = 7;
+    gbc.wy = 0;
+    gbc.mapTile[1].fill(49);
+    gbc.mapAttr[1].fill(2);
+    drawShop(gbc.ctx);
+  } else if (paused) {
+    gbc.lcdc.winOn = true;
+    gbc.wx = 7;
+    gbc.wy = 0;
+    gbc.mapTile[1].fill(49);
+    gbc.mapAttr[1].fill(2);
+    drawTextCentered(gbc.ctx, "PAUSA", 28);
+    ["CONTINUAR", "REINICIAR", "SALIR"].forEach((label, i) => {
+      const lx = (GBC_W - textWidth(label)) >> 1;
+      const ly = 54 + i * 14;
+      drawText(gbc.ctx, label, lx, ly);
+      if (i === (window.pauseSel || 0)) {
+        drawGlyph(gbc.ctx, GLYPH_COIN, lx - 10, ly);
+      }
+    });
+  } else {
+    gbc.lcdc.winOn = true;
+    gbc.wx = 7;
+    gbc.wy = VIEW_H;
+    drawHud(gbc.ctx);
+  }
+
+  // 11. Ejecutar el mini-PPU de Game Boy Color
+  gbc.renderFrame();
+
+  const status = players.map((p) => p.active ? `J${p.id + 1} HP ${p.hp} $ ${p.coins}` : `J${p.id + 1} -`).join("   ");
+  const infoEl = document.getElementById("info");
+  if (infoEl) {
+    infoEl.textContent = gameOver ? "GAME OVER - Arriba/Abajo elegir, Enter o disparo confirmar" :
+      `${paused ? "PAUSA · " : ""}${status}   Oleada ${wave}   Enemigos ${enemies.length}`;
+  }
+}
+
+function renderFallback(ctx) {
   ctx.clearRect(0, 0, GBC_W, GBC_H);
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, GBC_W, GBC_H);
-
-  if (screen !== "game") {
-    const draw = { splash: drawSplash, raiders: drawRoster, sheet: drawSheet, settings: drawSettings, about: drawAbout }[screen] || drawSelect;
-    draw(ctx);
-    document.getElementById("info").textContent = tr({ splash: "hintSplash", raiders: "hintRaiders", sheet: "hintSheet", settings: "hintSettings", about: "hintAbout" }[screen] || (multiplayer ? "hintSelectMulti" : "hintSelectSingle"));
-    return;
-  }
 
   const shakeX = wallShake > 0 ? (wallShake & 1 ? -1 : 1) : 0;
   const firstTileX = Math.max(0, (cam.x - shakeX) >> 3);

@@ -55,7 +55,7 @@ Habilidades especiales.
 continueGame.
 
 render.js
-Todo lo que se dibuja: las imágenes de “golpe”, el sistema de texto con fuente propia, el HUD, las pantallas de tienda y game over, y la función render(), que pinta mapa, jugadores, balas y enemigos. También limita los sprites por pantalla al estilo Game Boy.
+Renderizado mediante el hardware simulado (mini-PPU): escribe exclusivamente en VRAM (bancos 0 y 1 a 2bpp), tilemaps de fondo y ventana (mapTile / mapAttr), OAM (40 sprites con límite de 10 por línea) y paletas RGB555 de fondo y objetos, ejecutando gbc.renderFrame() en cada fotograma. Incluye soporte para textos, HUD en ventana, menús/overlays y límites de hardware reales.
 
 menus.js
 Las pantallas fuera de la partida: splash, selección de personaje (con unión del jugador 2), galería de Raiders, ficha de personaje y ajustes. Incluye los textos en español e inglés.
