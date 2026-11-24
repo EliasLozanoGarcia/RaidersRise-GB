@@ -76,7 +76,7 @@
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 </data>
  </layer>
- <objectgroup id="2" name="Logica">
+ <objectgroup id="2" name="Logica" visible="0">
   <object id="3" name="End" x="246.844" y="130.363" width="7.54153" height="31.0778"/>
   <object id="4" name="EnemiSpawner" x="20.1254" y="26.425" width="93.1666" height="12.5"/>
   <object id="6" name="EnemiSpawner" x="42.1424" y="177.344" width="12.5" height="13.6667"/>
