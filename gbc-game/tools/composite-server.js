@@ -13,6 +13,7 @@ const MIME = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".png": "image/png",
+  ".2bpp": "application/octet-stream",
   ".json": "application/json; charset=utf-8",
   ".csv": "text/csv; charset=utf-8"
 };
@@ -52,6 +53,9 @@ function createServer(root = ROOT, file = FILE) {
     res.end(JSON.stringify(body));
   };
   return http.createServer((req, res) => {
+    if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/i.test(req.headers.host || "")) {
+      send(res, 403, { error: "Host no permitido" }); return;
+    }
     let url;
     try { url = new URL(req.url, "http://localhost"); }
     catch { send(res, 400, { error: "URL no valida" }); return; }
@@ -81,13 +85,11 @@ function createServer(root = ROOT, file = FILE) {
         for (const entry of entries) next.set(JSON.stringify(entry), entry);
         if (next.size !== combinations.size) {
           const temp = `${file}.${randomUUID()}.tmp`;
-          let created = false;
           try {
             fs.writeFileSync(temp, JSON.stringify({ version: 1, combinations: [...next.values()] }, null, 2) + "\n", { flag: "wx" });
-            created = true;
             fs.renameSync(temp, file);
           } catch (error) {
-            if (created) {
+            if (fs.existsSync(temp)) {
               try { fs.unlinkSync(temp); } catch (cleanupError) { console.error("No se pudo borrar el temporal:", cleanupError); }
             }
             console.error("No se pudo guardar el registro:", error);

@@ -7,18 +7,21 @@ window.CompositeRecorder = (() => {
   const pending = new Map();
   const seen = new Set();
   let total = 0, timer = null, sending = false, storageFailed = false, captureFailed = false;
+  let storageReadable = true;
 
   function show(message) {
     if (status) status.textContent = message;
   }
 
   function fail(message) {
+    if (captureFailed) return;
     captureFailed = true;
     console.error(message);
     show(`Error de registro: ${message}`);
   }
 
   function savePending() {
+    if (!storageReadable) return;
     try {
       localStorage.setItem(storageKey, JSON.stringify([...pending.values()]));
     } catch (error) {
@@ -38,6 +41,7 @@ window.CompositeRecorder = (() => {
     }
   } catch (error) {
     storageFailed = true;
+    storageReadable = false;
     console.error("No se pudo leer el registro pendiente de combinaciones:", error);
     show("Error al leer el registro pendiente de combinaciones.");
   }
@@ -48,7 +52,7 @@ window.CompositeRecorder = (() => {
 
   async function flush() {
     timer = null;
-    if (sending || storageFailed) return;
+    if (sending) return;
     sending = true;
     const batch = [...pending.entries()].slice(0, 256);
     try {
@@ -57,7 +61,14 @@ window.CompositeRecorder = (() => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ combinations: batch.map(([, value]) => value) })
       } : { cache: "no-store" });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        let detail = `HTTP ${response.status}`;
+        if ((response.headers.get("content-type") || "").includes("application/json")) {
+          const error = await response.json();
+          if (typeof error.error === "string") detail += `: ${error.error}`;
+        }
+        throw new Error(detail);
+      }
       const result = await response.json();
       if (!Number.isInteger(result.count)) throw new Error("Respuesta de registro no valida");
       for (const [key] of batch) pending.delete(key);
@@ -70,7 +81,7 @@ window.CompositeRecorder = (() => {
       console.error("No se pudo guardar el registro de combinaciones:", error);
       savePending();
       if (!storageFailed && !captureFailed)
-        show(`Registro pendiente (${pending.size}): inicia node tools\\composite-server.js y abre su direccion.`);
+        show(`Error de registro (${error.message}); pendientes: ${pending.size}. Comprueba el servidor.`);
       schedule(5000);
     } finally {
       sending = false;

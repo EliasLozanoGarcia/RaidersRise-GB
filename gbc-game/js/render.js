@@ -96,7 +96,6 @@ const RGB_G1 = toRGB555(85, 116, 42);  // #55742a - tono medio claro
 const RGB_G2 = toRGB555(42, 78, 25);   // #2a4e19 - tono medio oscuro
 const RGB_G3 = toRGB555(16, 56, 16);   // #0f380f cuantizado al RGB555 mas cercano
 const RGB_WHITE = 0x7fff;
-const RGB_BLACK = 0;
 
 function setupGBCPalettes() {
   if (!hasGBC() || !gbc.setBgPalette) return;
@@ -199,14 +198,15 @@ function ensureTilesetLoaded() {
   }
 }
 
+const PICKUP_SPRITE_FIRST = 140;
 function loadPickupTilesToVram() {
   if (!hasGBC() || !gbc.vram || !assets || !assets.pickupTileset) return;
   const pObj = getImagePixels(assets.pickupTileset);
   if (!pObj) return;
-  for (let id = PICKUP.heart; id <= PICKUP.crystal; id++) {
+  LUCKY_DROPS.forEach((id, index) => {
     const bytes = convert8x8To2bpp(pObj.pixels, pObj.width, (id % 32) * 8, (id >> 5) * 8, false);
-    gbc.vram[0].set(bytes, id * 16);
-  }
+    gbc.vram[1].set(bytes, (PICKUP_SPRITE_FIRST + index) * 16);
+  });
 }
 
 function loadTilesetToVram(img, bank = 0, startId = 0) {
@@ -224,22 +224,13 @@ function loadTilesetToVram(img, bank = 0, startId = 0) {
 }
 
 function updateCompositeVram(slot) {
-  if (!hasGBC() || !gbc.vram || typeof compCv === "undefined" || !compCv) return;
-  const pObj = getImagePixels(compCv, false);
-  if (!pObj) return;
-  const bytes = convert8x8To2bpp(pObj.pixels, pObj.width, slot * 8, 0, false);
-  gbc.vram[0].set(bytes, (160 + slot) * 16);
+  if (!hasGBC() || !gbc.vram || typeof compTiles === "undefined" || !compTiles[slot]) return;
+  gbc.vram[0].set(compTiles[slot].bytes, (160 + slot) * 16);
 }
 
 function syncAllCompositesToVram() {
-  if (!hasGBC() || !gbc.vram || typeof compCv === "undefined" || !compCv ||
-      typeof COMP_SLOTS === "undefined") return;
-  const pObj = getImagePixels(compCv, false);
-  if (!pObj) return;
-  for (let s = 0; s < COMP_SLOTS; s++) {
-    const bytes = convert8x8To2bpp(pObj.pixels, pObj.width, s * 8, 0, false);
-    gbc.vram[0].set(bytes, (160 + s) * 16);
-  }
+  if (!hasGBC() || !gbc.vram || typeof compTiles === "undefined") return;
+  for (let s = 0; s < compTiles.length; s++) if (compTiles[s]) updateCompositeVram(s);
 }
 
 const TEXT_VRAM_FIRST = 160;
@@ -251,13 +242,12 @@ function specialCompositeVramTile(idx, id, attr, cache) {
   const cached = cache.get(key);
   if (cached !== undefined) return cached;
   if (cache.size >= SPECIAL_VRAM_IDS) return null;
-  const canvas = buildSpecialComposite(idx, id, attr);
-  const pObj = canvas && getImagePixels(canvas, false);
-  if (!pObj) return null;
+  const tile = buildSpecialComposite(idx, id, attr);
   const slot = cache.size, tileId = SPECIAL_VRAM_FIRST + slot;
-  gbc.vram[1].set(convert8x8To2bpp(pObj.pixels, pObj.width, 0, 0, false), tileId * 16);
-  cache.set(key, tileId);
-  return tileId;
+  gbc.vram[1].set(tile.bytes, tileId * 16);
+  const result = { id: tileId, flip: tile.flip };
+  cache.set(key, result);
+  return result;
 }
 
 function updateTextBufferVram() {
@@ -379,7 +369,7 @@ function drawMapTile(ctx, tx, ty, tileId, attr, hit = false, dy = 0, dx = 0, hit
   ctx.translate(screenX + 4, screenY + 4);
   if (flags & 0x20) ctx.scale(-1, 1);
   if (flags & 0x40) ctx.scale(1, -1);
-  const image = FLOOR_COMPOSITE_TILES.has(tileId) && transparentTilesetImage
+  const image = isFloorCompositeTile(tileId) && transparentTilesetImage
     ? (hit && hitImages.transparentTileset ? hitImages.transparentTileset : transparentTilesetImage)
     : (hit ? hitImage || hitImages.tileset || normalImage || assets.tilesetImage : normalImage || assets.tilesetImage);
   ctx.drawImage(image, sourceX, sourceY, 8, 8, -4, -4, 8, 8);
@@ -415,12 +405,11 @@ function drawSpecialTile(ctx, cell, id, attr, hit = false, hitImage = null, floo
   const itemImage = hit ? hitImage || hitImages.tileset || assets.tilesetImage : assets.tilesetImage;
   if (!drawSpecialComposite(ctx, idx, id, attr, x, y, itemImage, floorImage)) {
     drawMapTile(ctx, cell.tx, cell.ty, id, attr, false, 0, 0, null, floorImage);
-    if (itemsLayer[idx] >= 0 && !coinWaiting(idx)) {
+    if (itemsLayer[idx] >= 0 && !coinWaiting(idx) && !LUCKY_DROPS.includes(itemsLayer[idx])) {
       for (const [part, flags] of itemTileParts(itemsLayer[idx], itemsAttrs[idx]))
         drawMapTile(ctx, cell.tx, cell.ty, part, flags, hit,
           tileOffY.get(idx) || 0, tileOffX.get(idx) || 0,
-          LUCKY_DROPS.includes(itemsLayer[idx]) ? hitImages.pickups : hitImage,
-          LUCKY_DROPS.includes(itemsLayer[idx]) ? assets.pickupTileset : null);
+          hitImage);
     }
   }
   ctx.restore();
@@ -912,12 +901,12 @@ function renderGBC() {
       let tid, attr;
       if (spec) {
         const specialTile = specialCompositeVramTile(idx, spec.id, spec.attr || 0, specialVramCache);
-        tid = specialTile === null ? spec.id : specialTile;
-        attr = specialTile === null ? (spec.attr || 0) : (isFlashed ? 9 : 8);
+        tid = specialTile === null ? spec.id : specialTile.id;
+        attr = specialTile === null ? (spec.attr || 0) : specialTile.flip | (isFlashed ? 9 : 8);
       } else if (compSlot.has(idx) && !isFlashed) {
         tid = 160 + compSlot.get(idx);
-        attr = 0;
-      } else if (itemsLayer[idx] >= 0 && !coinWaiting(idx)) {
+        attr = compTiles[compSlot.get(idx)].flip;
+      } else if (itemsLayer[idx] >= 0 && !coinWaiting(idx) && !LUCKY_DROPS.includes(itemsLayer[idx])) {
         tid = itemsLayer[idx];
         attr = itemsAttrs[idx] || 0;
       } else {
@@ -1029,7 +1018,20 @@ function renderGBC() {
     }
   }
 
-  // 7. Enemies (culling + sorting)
+  // 7. Objetos recogibles
+  for (let ty = Math.max(0, (cam.y >> 3) - 1); ty <= Math.min(MAP_H - 1, ((cam.y + VIEW_H) >> 3) + 1); ty++) {
+    for (let tx = Math.max(0, (cam.x >> 3) - 1); tx <= Math.min(MAP_W - 1, ((cam.x + GBC_W) >> 3) + 1); tx++) {
+      const idx = ty * MAP_W + tx;
+      const pickup = LUCKY_DROPS.indexOf(itemsLayer[idx]);
+      if (pickup < 0 || coinWaiting(idx) || oamIdx >= 40) continue;
+      const coin = coinAnim.get(idx);
+      const px = tx * 8 - cam.x + shakeX;
+      const py = ty * 8 - cam.y - (coin && coin.fall ? 1 : 0);
+      gbc.setSprite(oamIdx++, px, py, PICKUP_SPRITE_FIRST + pickup, 0x08 | (itemsAttrs[idx] & 0x60));
+    }
+  }
+
+  // 8. Enemies (culling + sorting)
   if (selFrame !== frame) {
     selFrame = frame;
     const live = players.filter((p) => p.active && p.hp > 0);
@@ -1205,10 +1207,11 @@ function renderFallback(ctx) {
       const hasOffX = tileOffX.has(idx);
       const fs = compSlot.get(idx);
       if (fs !== undefined && !flashed(idx) && !tileOffY.has(idx) && !hasOffX) {
-        if (!coinWaiting(idx) || fondoClear(idx)) ctx.drawImage(compCv, fs * 8, 0, 8, 8, tx * 8 - cam.x, ty * 8 - cam.y, 8, 8);
+        if (!coinWaiting(idx) || fondoClear(idx))
+          window.CompositeTiles.draw(ctx, compTiles[fs], tx * 8 - cam.x, ty * 8 - cam.y);
         continue;
       }
-      if (FLOOR_COMPOSITE_TILES.has(itemsLayer[idx]) && !coinWaiting(idx)) {
+      if (isFloorCompositeTile(itemsLayer[idx]) && !coinWaiting(idx)) {
         drawMapTile(ctx, tx, ty, 49, 0);
       } else {
         if (fondoClear(idx)) drawMapTile(ctx, tx, ty, baseFloor(idx), 0);
@@ -1221,15 +1224,14 @@ function renderFallback(ctx) {
   for (let ty = firstTileY; ty <= lastTileY; ty++) {
     for (let tx = firstTileX; tx <= lastTileX; tx++) {
       const idx = ty * MAP_W + tx;
-      if (itemsLayer[idx] < 0 || coinWaiting(idx)) continue;
+      if (itemsLayer[idx] < 0 || coinWaiting(idx) || LUCKY_DROPS.includes(itemsLayer[idx])) continue;
       const hasOffX = tileOffX.has(idx);
       const slot = compSlot.get(idx);
       if (slot !== undefined && !flashed(idx) && !tileOffY.has(idx) && !hasOffX) continue;
       for (const [part, flags] of itemTileParts(itemsLayer[idx], itemsAttrs[idx]))
         drawMapTile(ctx, tx, ty, part, flags, flashed(idx), tileOffY.get(idx) || 0,
           hasOffX ? tileOffX.get(idx) : 0,
-          LUCKY_DROPS.includes(itemsLayer[idx]) ? hitImages.pickups : hitCells.has(idx) ? hitImages.luckyTileset : null,
-          LUCKY_DROPS.includes(itemsLayer[idx]) ? assets.pickupTileset : null);
+          hitCells.has(idx) ? hitImages.luckyTileset : null);
     }
   }
 
@@ -1251,6 +1253,17 @@ function renderFallback(ctx) {
       if (cell.tx >= firstTileX && cell.tx <= lastTileX && cell.ty >= firstTileY && cell.ty <= lastTileY && specialFloor(cell.tx, cell.ty))
         drawSpecialTile(ctx, cell, id, 0, flashed(cell.ty * MAP_W + cell.tx),
           hitCells.has(cell.ty * MAP_W + cell.tx) ? hitImages.luckyTileset : null, assets.biomeTilesets[0]);
+    }
+  }
+
+  for (let ty = firstTileY; ty <= lastTileY; ty++) {
+    for (let tx = firstTileX; tx <= lastTileX; tx++) {
+      const idx = ty * MAP_W + tx, id = itemsLayer[idx];
+      if (!LUCKY_DROPS.includes(id) || coinWaiting(idx)) continue;
+      const coin = coinAnim.get(idx);
+      const dy = (tileOffY.get(idx) || 0) - (coin && coin.fall ? 1 : 0);
+      drawMapTile(ctx, tx, ty, id, itemsAttrs[idx], false, dy, tileOffX.get(idx) || 0,
+        null, assets.pickupTileset);
     }
   }
 

@@ -18,6 +18,10 @@ function setup() {
     const ctx = { clearRect() {}, fillRect() {}, save() {}, restore() {}, beginPath() {},
       rect() {}, clip() {}, moveTo() {}, lineTo() {}, closePath() {}, translate() {}, scale() {}, drawImage() {} };
     const gbc = { ctx };
+    const window = { CompositeTiles: {
+      resolve: () => ({ bytes: new Uint8Array(16), flip: 0 }),
+      draw: (ctx, tile, x, y) => ctx.drawImage(tile, x, y)
+    } };
     const document = { getElementById() { return {}; } };
     const lv = () => 0, specialSize = () => 3;
     let specialFrames = () => 240;
@@ -50,7 +54,7 @@ function setup() {
   return (code) => vm.runInContext(code, context);
 }
 
-test("los siete premios usan el atlas propio en los tres biomas, tambien en composites", () => {
+test("los siete premios usan el atlas propio sin crear composites", () => {
   const run = setup();
   run(`
     const urban = {}, desert = {}, snow = {}, hit = {};
@@ -60,8 +64,6 @@ test("los siete premios usan el atlas propio en los tres biomas, tambien en comp
       getContext: () => ({ drawImage: (...args) => copied.push(args) })
     });
     initPickupTiles();
-    hitImages.tileset = hit;
-    hitImages.pickups = {};
     const drawn = [];
     drawTileInto = (ctx, id, attr, x, y, image) => drawn.push({ id, image });
     compCtx = { clearRect() {}, save() {}, beginPath() {}, rect() {}, clip() {}, restore() {} };
@@ -75,11 +77,9 @@ test("los siete premios usan el atlas propio en los tres biomas, tambien en comp
   assert.equal(run("copied.map(c => (c[6] / 8) * 32 + c[5] / 8).join(',')"), "152,153,154,155,160,161,162");
   for (const biome of ["urban", "desert", "snow"]) for (let i = 0; i < 7; i++) {
     run(`assets.tilesetImage = ${biome}; drawn.length = 0; setItemTile(0, LUCKY_DROPS[${i}])`);
-    assert.equal(run("compSlot.has(0) && drawn.at(-1).image === assets.pickupTileset"), true);
-    assert.equal(run("gbc.mapTile[0][0] === LUCKY_DROPS[" + i + "]"), true);
+    assert.equal(run("!compSlot.has(0) && drawn.length === 0"), true);
+    assert.equal(run("gbc.mapTile[0][0] === fondoLayer[0]"), true);
     assert.equal(run("getCellCollision(0, 0)"), 0);
-    run(`drawn.length = 0; drawItemInto(compCtx, LUCKY_DROPS[${i}], 0, 0, 0, hitImages.tileset)`);
-    assert.equal(run("drawn.at(-1).image === hitImages.pickups"), true);
   }
 });
 
@@ -121,7 +121,7 @@ test("el dash recoge monedas y objetos por el recorrido y respeta las monedas pe
   assert.equal(run("p.coins"), 2);
 });
 
-test("las explosiones usan Urban en cada bioma, tambien bajo premios compuestos", () => {
+test("las explosiones usan Urban en cada bioma sin componer los premios", () => {
   const run = setup();
   run(`
     const urban = {}, desert = {}, snow = {};
@@ -142,10 +142,11 @@ test("las explosiones usan Urban en cada bioma, tambien bajo premios compuestos"
     document.createElement = () => ({
       getContext: () => ({ clearRect() {}, save() {}, beginPath() {}, rect() {}, clip() {}, restore() {} })
     });
+    draws.length = 0;
     drawSpecialTile(ctx, { tx: 0, ty: 0, id: 124, attr: 0 }, 156, 0, false, null, urban);
   `);
-  assert.equal(run("compositeDraws[0].id === 156 && compositeDraws[0].image === urban"), true);
-  assert.equal(run("compositeDraws[1].image === assets.pickupTileset"), true);
+  assert.equal(run("draws.some(d => d.id === 156 && d.image === urban)"), true);
+  assert.equal(run("compositeDraws.length"), 0);
 });
 
 test("selecciona extremos, bordes y esquinas volteadas para cada forma", () => {
@@ -581,7 +582,7 @@ test("las cuatro partes de una lucky block herida usan el tileset aclarado y lue
     itemsLayer[2 * MAP_W + 2] = 27; itemsLayer[2 * MAP_W + 3] = 28;
     itemsLayer[3 * MAP_W + 2] = 59; itemsLayer[3 * MAP_W + 3] = 60;
     itemsLayer[2 * MAP_W + 6] = 19; barrierHit.set(2 * MAP_W + 6, 6);
-    compSlot.set(2 * MAP_W + 2, 0); compCv = { name: "composite" };
+    compSlot.set(2 * MAP_W + 2, 0); compTiles[0] = { name: "composite" };
     const images = [];
     ctx.drawImage = (image) => images.push(image);
     drawMapTile = actualDrawMapTile;
@@ -592,10 +593,10 @@ test("las cuatro partes de una lucky block herida usan el tileset aclarado y lue
   assert.deepEqual(Array.from(run("hitImages.luckyTileset.pixels.slice(0, 4)")), [200, 0, 0, 255]);
   assert.equal(run("images.filter(image => image === hitImages.luckyTileset).length"), 4);
   assert.equal(run("images.filter(image => image === hitImages.tileset).length"), 1);
-  assert.equal(run("images.includes(compCv)"), false);
+  assert.equal(run("images.includes(compTiles[0])"), false);
   run("images.length = 0; luckyBoxes[0].hit = 0; render()");
   assert.equal(run("images.includes(hitImages.luckyTileset)"), false);
-  assert.equal(run("images.includes(compCv)"), true);
+  assert.equal(run("images.includes(compTiles[0])"), true);
 });
 
 test("recorta la mitad bloqueada y recompone el diamante y la moneda sobre el especial", () => {
@@ -622,9 +623,7 @@ test("recorta la mitad bloqueada y recompone el diamante y la moneda sobre el es
     coinAnim.set(2 * MAP_W + 2, {fall:true,t:1});
     drawSpecialTile(ctx, {tx:2,ty:2}, 156, 0);
   `);
-  assert.equal(run("calls.join(',')"), "156:0:0,153:32:-1,composite");
-  run("calls.length = 0; coinAnim.get(2 * MAP_W + 2).fall = false; drawSpecialTile(ctx, {tx:2,ty:2}, 157, 0)");
-  assert.equal(run("calls.join(',')"), "157:0:0,composite");
+  assert.equal(run("calls.join(',')"), "");
 });
 
 test("compone los tiles solicitados sobre el suelo 49 y sobre los especiales", () => {
@@ -636,6 +635,8 @@ test("compone los tiles solicitados sobre el suelo 49 y sobre los especiales", (
     specialCompCtx = compCtx;
     ctx.drawImage = () => {};
     drawTileInto = (c, id, attr) => calls.push([id, attr].join(":"));
+    assets.tilesetImage = {};
+    assets.biomeTilesets.push(assets.tilesetImage);
     compFree.push(0);
     for (const id of FLOOR_COMPOSITE_TILES) transparentTiles.add(id);
     fondoLayer[42] = 8; itemsLayer[42] = 64; itemsAttrs[42] = 32;
@@ -676,6 +677,41 @@ test("elimina solo el color de suelo de los tiles indicados al analizar el tiles
   assert.equal(run("written[pixelAt(68) + 3]"), 255);
 });
 
+test("Urban solo combina los tiles 70, 71 y 72, ademas de premios y avisos", () => {
+  const run = setup();
+  run(`
+    const raw = new Uint8ClampedArray(256 * 64 * 4).fill(255);
+    const transparent = new Uint8ClampedArray(raw);
+    const pixelAt = (id, x = 0) => (((id >> 5) * 8) * 256 + (id % 32) * 8 + x) * 4;
+    transparent[pixelAt(29) + 3] = 0;
+    raw[pixelAt(30) + 3] = 0;
+    const urban = { width: 256, height: 64, pixels: raw };
+    const overlay = { width: 256, height: 64, pixels: transparent };
+    assets.tilesetImage = urban; assets.biomeTilesets = [urban];
+    assets.urbanTransparentTileset = overlay;
+    compCtx = {};
+    document.createElement = () => ({
+      width: 0, height: 0,
+      getContext: () => {
+        let current;
+        return { clearRect() {}, drawImage(image) { current = new Uint8ClampedArray(image.pixels); },
+          getImageData() { return { data: current }; },
+          putImageData(data) { current = data.data; } };
+      }
+    });
+    scanTilesetTransparency();
+  `);
+  assert.equal(run("[70,71,72].every(id => needsComposite(id) && transparentTiles.has(id))"), true);
+  assert.equal(run("[29,30,31,64,65,66,67,69,76,77,78,79,82,83,88,114,115,156].every(id => !needsComposite(id) && !transparentTiles.has(id))"), true);
+  assert.equal(run("[93,126,127].every(id => needsComposite(id))"), true);
+  assert.equal(run("LUCKY_DROPS.every(id => !needsComposite(id))"), true);
+  assert.equal(run("isFloorCompositeTile(70) && !isFloorCompositeTile(69)"), true);
+  run("fondoLayer[42] = 69; itemsLayer[42] = -1");
+  assert.equal(run("fondoClear(42)"), false);
+  run("fondoLayer[42] = 70");
+  assert.equal(run("fondoClear(42)"), true);
+});
+
 test("las alertas componen cofre o cristal y el 93 volteado sobre el fondo", () => {
   const run = setup();
   run(`
@@ -706,8 +742,8 @@ test("dibuja el marcador sobre items sin modificar las capas y lo sustituye por 
       facing: 0, row: 0, sp: { state: "aim", tx: 2, ty: 2, w: 1, h: 1 } }];
     render();
   `);
-  assert.equal(run("draws.filter(c => c.tx === 2 && c.ty === 2).map(c => c.id).join(',')"), "49,153,90,153");
+  assert.equal(run("draws.filter(c => c.tx === 2 && c.ty === 2).map(c => c.id).join(',')"), "49,90,153");
   run("draws.length = 0; specialExplosions.push({cells:specialMarkerCells(players[0].sp),age:0}); players[0].sp.state = 'active'; players[0].sp.instant = true; render()");
-  assert.equal(run("draws.filter(c => c.tx === 2 && c.ty === 2).map(c => c.id).join(',')"), "49,153,156,153");
+  assert.equal(run("draws.filter(c => c.tx === 2 && c.ty === 2).map(c => c.id).join(',')"), "49,156,153");
   assert.equal(run("itemsLayer[2 * MAP_W + 2]"), 153);
 });

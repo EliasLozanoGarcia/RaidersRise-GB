@@ -36,6 +36,7 @@ test("las imagenes se cargan sin cache ni conversion del perfil de color", async
   const { loader, imageRequests, decodes } = setup();
   const assets = await loader.init();
   assert.equal(assets.tilesetImage.url, "assets/tileset_GBC_Urban.png");
+  assert.equal(assets.urbanTransparentTileset.url, "assets/tileset_GBC_Urban_Transparente.png");
   assert.ok(imageRequests.length > 0);
   assert.equal(decodes.length, imageRequests.length);
   assert.ok(imageRequests.every(({ options }) => options.cache === "no-store"));

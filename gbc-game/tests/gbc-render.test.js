@@ -47,12 +47,13 @@ function setup() {
     const PICKUP = { heart: 152, coin: 153, mana: 154, crystal: 155, shield: 160, key: 161, grenade: 162 };
     const LUCKY_DROPS = Object.values(PICKUP);
     const FLOOR_COMPOSITE_TILES = new Set([64, 65, 66, 67, 69, 70, 71, 72]);
+    const isFloorCompositeTile = id => FLOOR_COMPOSITE_TILES.has(id);
     let frame = 0, selFrame = -1, screen = "game", gameOver = false, shop = null, paused = false, wallShake = 0, wave = 1;
     const cam = { x: 0, y: 0 };
     let players = [{ id: 0, active: true, hp: 5, mana: 50, coins: 10, crystals: 2, x: 32 << 8, y: 32 << 8, facing: 0, row: 0, inv: 0, hit: 0, ch: { img: "playerImage" } }];
     let enemies = [{ type: "slime", sprite: "enemyImage", size: 8, x: 48 << 8, y: 48 << 8, dir: 0, hp: 2, hit: 0, moving: true, animT: 5 }];
     let bullets = [], luckyBoxes = [], teleportEffects = [], specialExplosions = [], enemyDeathEffects = [];
-    const blasts = new Map(), barrierHit = new Map(), tileOffY = new Map(), tileOffX = new Map(), compSlot = new Map();
+    const blasts = new Map(), barrierHit = new Map(), tileOffY = new Map(), tileOffX = new Map(), compSlot = new Map(), coinAnim = new Map();
     const coinWaiting = () => false, fondoClear = () => false, baseFloor = () => 49;
     const specialMarkerCells = () => [];
     const specialFloor = () => false;
@@ -153,7 +154,7 @@ test("un cambio de tileset recarga los composites y el texto en VRAM", () => {
   assert.equal(run("sequence.join(',')"), "tileset,pickups,composites,text");
 });
 
-test("los premios 153-155 se cargan desde el atlas de pickups", () => {
+test("los siete premios se cargan como sprites desde el atlas de pickups", () => {
   const run = setup();
   const result = run(`
     assets.pickupTileset = {
@@ -161,7 +162,7 @@ test("los premios 153-155 se cargan desde el atlas de pickups", () => {
       height: 64,
       pixels: new Uint8ClampedArray(256 * 64 * 4)
     };
-    for (let id = 153; id <= 155; id++) {
+    for (const id of LUCKY_DROPS) {
       const x = (id % 32) * 8, y = (id >> 5) * 8;
       for (let py = 0; py < 8; py++) for (let px = 0; px < 8; px++) {
         const i = ((y + py) * 256 + x + px) * 4;
@@ -172,9 +173,28 @@ test("los premios 153-155 se cargan desde el atlas de pickups", () => {
       }
     }
     loadPickupTilesToVram();
-    [153,154,155].map(id => gbc.vram[0].subarray(id * 16, (id + 1) * 16).some(Boolean))
+    LUCKY_DROPS.map((id, index) => gbc.vram[1]
+      .subarray((PICKUP_SPRITE_FIRST + index) * 16, (PICKUP_SPRITE_FIRST + index + 1) * 16)
+      .some(Boolean))
   `);
-  assert.deepEqual(Array.from(result), [true, true, true]);
+  assert.deepEqual(Array.from(result), [true, true, true, true, true, true, true]);
+});
+
+test("los premios se dibujan en OAM sin ocupar el tilemap ni crear composites", () => {
+  const run = setup();
+  run(`
+    const idx = 2 * MAP_W + 3;
+    itemsLayer[idx] = PICKUP.coin;
+    itemsAttrs[idx] = 0x20;
+    coinAnim.set(idx, { fall: true, t: 1 });
+    enemies = [];
+    initHud();
+    loadPickupTilesToVram();
+    render();
+  `);
+  assert.equal(run("gbc.mapTile[0][2 * 32 + 3]"), 49);
+  assert.equal(run("Array.from(gbc.oam).filter((tile, i) => i % 4 === 2 && tile === PICKUP_SPRITE_FIRST + 1).length"), 1);
+  assert.equal(run("compSlot.size"), 0);
 });
 
 test("los tres colores opacos de un sprite conservan indices distintos", () => {
@@ -438,28 +458,13 @@ test("el fondo del HUD limpia las celdas vacias al reducirse un numero", () => {
   assert.equal(run("gbc.mapAttr[1][32 + 12]"), 8);
 });
 
-test("los composites ignoran una lectura antigua cacheada del canvas", () => {
+test("los composites se copian directamente desde los datos pregenerados", () => {
   const run = setup();
   run(`
-    const stale = new Uint8ClampedArray(8 * 8 * 4);
-    stale.fill(0);
-    const fresh = new Uint8ClampedArray(8 * 8 * 4);
-    for (let i = 0; i < fresh.length; i += 4) {
-      fresh[i] = 0; fresh[i + 1] = 0; fresh[i + 2] = 0; fresh[i + 3] = 255;
-    }
-    compCv = { width: 8, height: 8 };
-    imagePixelCache.set(compCv, { pixels: stale, width: 8, height: 8 });
-    document.createElement = () => {
-      const cv = { width: 8, height: 8 };
-      cv.getContext = () => ({
-        drawImage() {},
-        getImageData() { return { data: fresh }; }
-      });
-      return cv;
-    };
+    const compTiles = [{ bytes: new Uint8Array(16).fill(0xa5), flip: 32 }];
     updateCompositeVram(0);
   `);
-  assert.equal(run("gbc.vram[0].some((value, index) => index >= 160 * 16 && index < 161 * 16 && value !== 0)"), true);
+  assert.equal(run("gbc.vram[0].subarray(160 * 16, 161 * 16).every(value => value === 0xa5)"), true);
 });
 
 test("el texto usa VRAM banco 1 y no sobrescribe los tiles del mapa", () => {

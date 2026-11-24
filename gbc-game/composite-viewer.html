@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tiles compuestos numerados</title>
+<style>
+  body { margin: 24px; background: #171a16; color: #e3edcc; font: 15px sans-serif; }
+  h1 { margin-bottom: 8px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin: 18px 0; }
+  input, select { font: inherit; padding: 5px; }
+  #tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; }
+  .tile { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 8px;
+    background: #2a3224; border: 1px solid #526147; }
+  canvas { width: 64px; height: 64px; image-rendering: pixelated; }
+  #status { min-height: 1.5em; }
+</style>
+</head>
+<body>
+<h1>Tiles compuestos numerados</h1>
+<p>Indica los números que quieras fusionar. Cada imagen representa el tile GBC de 8 × 8 píxeles.</p>
+<div class="controls">
+  <label>Número <input id="number" type="number" min="1" placeholder="Todos"></label>
+  <label>Bioma <select id="biome"><option value="">Todos</option><option>urban</option><option>desert</option><option>snow</option></select></label>
+  <label>Tipo <select id="kind"><option value="">Todos</option><option>normal</option><option>special</option><option>special-fallback</option></select></label>
+</div>
+<p id="status">Cargando tiles...</p>
+<div id="tiles"></div>
+<script src="js/composite-viewer.js"></script>
+</body>
+</html>

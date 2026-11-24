@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "combinations": [
+    { "biome": "urban", "floor": 47, "item": 154 },
+    { "biome": "urban", "floor": 39, "item": 29 }
+  ]
+}

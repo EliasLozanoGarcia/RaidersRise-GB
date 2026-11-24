@@ -26,17 +26,50 @@ el juego muestra el total guardado y las combinaciones pendientes. Se acumulan
 en `composite-observations.json` entre partidas y reinicios; el objetivo de
 1024 no limita el registro. Si el puerto está ocupado, usa otro con
 `$env:PORT=8001; node .\tools\composite-server.js` y abre ese puerto.
-Usa una sola instancia del servidor para este archivo.
+Usa una sola instancia del servidor y una sola pestaña para este archivo.
 
 El registro contiene recetas únicas observadas al construir tiles compuestos:
 bioma, capas ordenadas, fuente, ID interno, espejos y desplazamiento. Recetas
 distintas pueden producir los mismos píxeles, por lo que el total no es aún un
 recuento exacto de gráficos únicos ni mide su frecuencia visual. Los cambios
-de paleta aplicados posteriormente no son recetas adicionales. No se generan
-todavía los tiles pregenerados ni se sustituye la composición durante la partida.
+de paleta aplicados posteriormente no son recetas adicionales.
 Si falla la conexión, el navegador conserva los pendientes en su almacenamiento
 local y reintenta; vuelve a abrir la misma dirección y puerto. Si aparece un
 error de almacenamiento, no cierres la página antes de resolverlo.
+
+### Generar y revisar tiles observados
+
+Con Python y Pillow instalados, desde `gbc-game` ejecuta:
+
+```powershell
+python .\tools\generate_composites.py
+```
+
+La herramienta genera `assets/composite-tiles.png`, los datos GBC 2bpp en
+`assets/composite-tiles.2bpp` y el catálogo `maps/composite-tiles.json`.
+Los números empiezan en 1: el tile 1 está en los primeros 16 bytes, el tile 2
+en los 16 siguientes, etc. Al volver a generar se conservan los números
+existentes y se añaden los nuevos al final; no borres el catálogo si quieres
+mantenerlos. Los gráficos se regeneran con los tilesets actuales.
+
+Con el servidor local iniciado, abre `http://127.0.0.1:8000/composite-viewer.html`
+para verlos ampliados, buscar un número y filtrar por bioma o tipo. El atlas
+contiene los colores cuantizados del fondo GBC; el binario contiene los índices
+de color 2bpp. En Urban solo los tiles de mapa 70, 71 y 72 (IDs desde cero)
+usan transparencia de suelo; monedas, premios, avisos y especiales conservan
+sus composiciones. Para los premios y el icono de aviso se usa el PNG Urban
+transparente; el resto usa el PNG Urban editado. Desert y Snow no cambian.
+`composite-required.json` añade los casos solicitados
+expresamente, sin mezclarlos con las observaciones de partidas.
+
+El juego utiliza `assets/composite-unique.2bpp`, que elimina duplicados y
+espejos y recupera la orientación mediante los atributos GBC. Cuando aparece
+una combinación que aún no está generada, muestra un patrón de cuadros y la
+registra. Para incorporarla, espera a que se guarde el registro, ejecuta de
+nuevo el generador y recarga el juego. Si modificas un tileset de bioma,
+regenera los tiles antes de jugar; el inicio avisa si los archivos no coinciden.
+Tras actualizar el servidor de registro, reinícialo para servir el formato
+`.2bpp`.
 
 El selector **Escala del juego** permite elegir entre el tamaño automático
 (el predeterminado) y las escalas fijas 1:1, 1:2, 1:3 y 1:4. Las escalas fijas
@@ -180,8 +213,12 @@ los numeros de Tiled 153–156 (IDs internos 152–155).
 
 ## Archivos activos
 
-- `index.html` carga el motor, los controles, `js/loader_dmg.js` y `js/game.js`.
-- `engine/gbc.js` conserva el motor de colisiones y el renderizador retro anterior.
+- `index.html` carga el motor, los controles, el cargador y los módulos del juego
+  hasta `js/main.js`, que contiene el bucle principal.
+- `engine/gbc.js` implementa el mini-PPU del Game Boy Color, incluyendo VRAM,
+  OAM, paletas, fondo, ventana y límites por línea.
+- `js/render.js` convierte los recursos a 2bpp y dibuja tanto el juego como los
+  menús. `engine/input.js` traduce teclado y mandos a botones de Game Boy.
 - Los PNG se cargan sin aplicar el perfil de color incrustado y sin usar la
   cache HTTP, para conservar los valores RGB del archivo tras cada edicion.
   Al iniciar, el motor convierte los tiles a 2bpp: los fondos usan
@@ -190,9 +227,11 @@ los numeros de Tiled 153–156 (IDs internos 152–155).
   nuevos iconos y explosiones utilizan el tileset Urban en todos los biomas;
   el escudo, la llave y la granada conservan los iconos anteriores de Desert.
   Los enemigos se dibujan desde
-  `assets/enemies_run.png`.
-- `maps/Leveltest._Fondo.csv` y `maps/Leveltest._Items.csv` son las capas del
-  mapa exportadas desde Tiled.
+  `assets/enemies_run.png`, `assets/enemies_Bee.png` y
+  `assets/enemies_Slug_Big.png`.
+- Los niveles activos están en `maps/Level0-*` y `maps/Level1-*`. Cada nivel
+  puede contener sus capas `Fondo`, `Items` y su archivo `Logic.json`; se
+  exportan desde Tiled con `tools/export_all_maps.py`.
 - `tools/convert_splash.py` convierte `assets/Splash_Screen.png` en
   `assets/splash_tiles.png` (191 tiles únicos) y `maps/splash.json` (mapa de tiles);
   borra las opciones originales para dibujar las opciones interactivas con la fuente.
@@ -203,9 +242,12 @@ los numeros de Tiled 153–156 (IDs internos 152–155).
   estados, estadísticas y descripciones se dibujan según el personaje elegido.
 - Los textos usan `assets/font_8x8.png` (ancho proporcional): se componen en un
   buffer propio de 32 tiles en el banco 1 (ids 160-191) y se pintan como tiles.
-- Tiles compuestos: los items con transparencia (detectados por alfa en el tileset),
-  los premios y las alertas (93 cofre, 126/127 cristal) se dibujan como un tile
+- Tiles compuestos: los elementos de escenario con transparencia detectados
+  por alfa y las alertas (93 cofre, 126/127 cristal) se dibujan como un tile
   buffer (suelo + item) de un pool de 96 huecos (ids 160-255, filas 6-8), que se libera al desaparecer el item.
+  Los objetos recogibles (corazón, moneda, mana, cristal, escudo, llave y
+  granada) no forman parte de las combinaciones: se cargan en VRAM como sprites
+  OAM de 8×8 y se dibujan directamente sobre el mapa.
   Los tiles 64-67 y 69-72 usan el color del suelo 49 como transparencia; si estan en la capa de fondo,
   o de items, se componen sobre el suelo 49. Los especiales sustituyen el suelo y conservan el objeto encima.
   Las monedas caen (1 px mas arriba durante 0,1 s) y salen escalonadas en grupos de 1-3.
@@ -219,5 +261,5 @@ los numeros de Tiled 153–156 (IDs internos 152–155).
 Los datos de mapa usan los IDs locales exportados desde Tiled: el juego aplica
 las banderas de volteo y dibuja cada tile directamente desde el PNG original.
 El valor `-1` indica celdas vacias en la capa de items.
-El conversor `tools/convert.py` corresponde al pipeline anterior de GBC; no es
-necesario para ejecutar este prototipo.
+Los recursos `composite-*` se generan con `tools/generate_composites.py`; no se
+incluyen en el flujo los generados del pipeline anterior.

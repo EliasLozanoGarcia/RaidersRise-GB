@@ -69,6 +69,7 @@ window.DMGLoader = (function () {
         tilesetImage,
         desertTileset,
         snowTileset,
+        urbanTransparentTileset,
         playerImage,
         kurtImage,
         skreekImage,
@@ -85,12 +86,12 @@ window.DMGLoader = (function () {
         qrImage,
         shotSmallImage,
         shotBigImage,
-        kurtDashImage,
         reloadImage
       ] = await Promise.all([
         loadImage("assets/tileset_GBC_Urban.png"),
         loadImage("assets/tileset_GBC_Desert.png"),
         loadImage("assets/tileset_GBC_Snow.png"),
+        loadImage("assets/tileset_GBC_Urban_Transparente.png"),
         loadImage("assets/Kathy_Sprites.png"),
         loadImage("assets/Kurt_Sprites.png"),
         loadImage("assets/Skreel_Sprites.png"),
@@ -111,7 +112,6 @@ window.DMGLoader = (function () {
         // Sprites de disparo: si faltan, el juego dibuja las balas como cuadrados (no es fatal).
         loadImage("assets/disparo_Small.png").catch(() => null), // Kurt
         loadImage("assets/disparo_Big.png").catch(() => null),   // Kathy
-        loadImage("assets/Kurt-Dash_Sprite.png").catch((err) => { console.warn(err.message); return null; }),
         loadImage("assets/Reload.png")
       ]);
 
@@ -169,6 +169,7 @@ window.DMGLoader = (function () {
       return {
         tilesetImage,
         biomeTilesets: [tilesetImage, desertTileset, snowTileset],
+        urbanTransparentTileset,
         playerImage,
         kurtImage,
         skreekImage,
@@ -185,7 +186,6 @@ window.DMGLoader = (function () {
         qrImage,
         shotSmallImage,
         shotBigImage,
-        kurtDashImage,
         reloadImage,
         levels
       };

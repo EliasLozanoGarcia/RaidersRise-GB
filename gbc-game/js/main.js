@@ -203,10 +203,10 @@ const ENEMY_HIT_SPRITES = ["enemyImage", "bigSlugImage", "beeImage"];
 
 async function start() {
   assets = await DMGLoader.init();
+  await window.CompositeTiles.load();
   allLevels = assets.levels;
   initPickupTiles();
   initHud();
-  hitImages.pickups = makeHitImage(assets.pickupTileset);
   initText();
   initAboutQr();
   initComposites();
